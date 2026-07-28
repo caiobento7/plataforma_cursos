@@ -1,0 +1,884 @@
+/* Reset e estilos base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+:root {
+    --primary: #2c3e50;
+    --primary-light: #34495e;
+    --primary-dark: #1a252f;
+    --accent: #3498db;
+    --text: #2c3e50;
+    --text-light: #7f8c8d;
+    --background: #ecf0f1;
+    --white: #ffffff;
+    --border: #bdc3c7;
+    --success: #27ae60;
+    --warning: #f39c12;
+    --danger: #e74c3c;
+}
+
+body {
+    background-color: var(--background);
+    color: var(--text);
+    line-height: 1.6;
+}
+
+/* Componentes reutilizáveis */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.card {
+    background: var(--white);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    text-decoration: none; /* Adicionado para links <a> */
+}
+
+.btn:hover {
+    background-color: var(--primary-light);
+}
+
+.btn-accent {
+    background-color: var(--accent);
+}
+
+.btn-accent:hover {
+    background-color: #2980b9;
+}
+
+.btn-success {
+    background-color: var(--success);
+}
+.btn-success:hover {
+    background-color: #2ecc71;
+}
+
+.btn-danger {
+    background-color: var(--danger);
+    border: none;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.btn-danger:hover {
+    background-color: #c0392b;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+input, select, textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+/* Header */
+header {
+    background-color: var(--primary);
+    color: white;
+    padding: 15px 0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: 700;
+    cursor: pointer; /* Adicionado para navegação */
+}
+
+/* --- Estilos da Barra de Pesquisa --- */
+.search-bar {
+    flex: 1;
+    max-width: 500px;
+    margin: 0 20px;
+    position: relative; /* Necessário para o autocomplete */
+}
+
+.search-bar input {
+    width: 100%;
+    padding: 10px 15px;
+    border-radius: 20px;
+    border: none;
+    color: var(--text);
+}
+
+.autocomplete-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.suggestion-item {
+  padding: 10px 15px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.suggestion-item:hover {
+  background-color: var(--background);
+}
+/* --- FIM DOS ESTILOS DE PESQUISA --- */
+
+.user-menu {
+    display: flex;
+    align-items: center;
+}
+
+.user-menu a {
+    color: white;
+    text-decoration: none;
+    margin-left: 15px;
+}
+
+/* Footer */
+footer {
+    background-color: var(--primary-dark);
+    color: white;
+    padding: 30px 0;
+    margin-top: 40px;
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+}
+
+.footer-section {
+    flex: 1;
+    padding: 0 20px;
+}
+
+.footer-section h3 {
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.footer-section ul {
+    list-style: none;
+}
+
+.footer-section ul li {
+    margin-bottom: 10px;
+}
+
+.footer-section a {
+    color: #bdc3c7;
+    text-decoration: none;
+}
+
+.footer-section a:hover {
+    color: white;
+}
+
+/* Página principal */
+.hero {
+    background-color: var(--primary);
+    color: white;
+    padding: 60px 0;
+    text-align: center;
+}
+
+.hero h1 {
+    font-size: 36px;
+    margin-bottom: 20px;
+}
+
+.hero p {
+    font-size: 18px;
+    max-width: 700px;
+    margin: 0 auto 30px;
+}
+
+.course-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    margin: 30px 0;
+}
+
+.course-card {
+    background: var(--white);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+    cursor: pointer; /* Adicionado para navegação */
+    display: flex;
+    flex-direction: column;
+}
+
+.course-card:hover {
+    transform: translateY(-5px);
+}
+
+.course-image {
+    height: 160px;
+    width: 100%;
+    background-color: var(--primary-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 500;
+    object-fit: cover; 
+}
+
+.course-info {
+    padding: 15px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.course-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.course-instructor {
+    color: var(--text-light);
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.course-price {
+    font-weight: 700;
+    font-size: 18px;
+    margin-bottom: 15px;
+    margin-top: auto; /* Empurra o preço para baixo */
+}
+
+.course-meta-tags {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-light);
+  margin-bottom: 10px;
+  padding: 0 5px;
+}
+.course-level {
+  background-color: var(--background);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+.course-rating {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Página de detalhes do curso */
+.course-header {
+    background-color: var(--primary);
+    color: white;
+    padding: 40px 0;
+}
+
+.course-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.course-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.course-content {
+    display: flex;
+    gap: 30px;
+    margin-top: 30px;
+}
+
+.course-main {
+    flex: 2;
+}
+
+.course-sidebar {
+    flex: 1;
+}
+
+.module {
+    margin-bottom: 20px;
+}
+
+.module-header {
+    background-color: var(--primary-light);
+    color: white;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    cursor: pointer; 
+}
+
+.module-header.locked {
+    background-color: var(--text-light);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.lesson {
+    padding: 15px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer; 
+}
+
+.lesson.locked {
+    color: var(--text-light);
+    cursor: not-allowed;
+    background-color: #f9f9f9;
+}
+
+.lesson:last-child {
+    border-bottom: none;
+}
+
+.lesson.active {
+  background-color: #e8f4fd;
+  font-weight: 600;
+}
+
+.lesson.completed {
+  color: var(--success);
+}
+
+.lesson span:last-child {
+  color: var(--text-light); /* Duração da aula */
+}
+
+.lesson.completed span:last-child {
+  color: var(--success); /* Checkmark */
+  font-weight: 700;
+}
+
+.progress-bar-container {
+  background-color: #ecf0f1;
+  height: 10px;
+  border-radius: 5px;
+  margin: 10px 0;
+}
+.progress-bar {
+  background-color: var(--success);
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+
+/* Player de vídeo */
+.video-player {
+    background-color: var(--primary-dark);
+    height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    width: 100%;
+    object-fit: cover;
+}
+
+.document-player {
+  background-color: var(--white);
+  border: 1px solid var(--border);
+  height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  margin-bottom: 20px;
+  border-radius: 8px;
+  width: 100%;
+  text-align: center;
+}
+
+/* Área de perguntas */
+.question {
+    padding: 15px;
+    border-bottom: 1px solid var(--border);
+}
+
+.question-list-item {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.question-list-item:hover {
+  background-color: #f9f9f9;
+}
+.question-list-item.active {
+  background-color: #e8f4fd;
+}
+
+.question:last-child {
+    border-bottom: none;
+}
+
+.question-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.question-author {
+    font-weight: 600;
+}
+
+.question-date {
+    color: var(--text-light);
+    font-size: 14px;
+}
+
+.answer {
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    margin-top: 10px;
+    margin-left: 20px;
+}
+
+/* Dashboard */
+.dashboard {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 20px;
+    margin-top: 30px;
+}
+
+.sidebar {
+    background-color: var(--white);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-menu {
+    list-style: none;
+}
+
+.sidebar-menu li {
+    margin-bottom: 10px;
+}
+
+.sidebar-menu a {
+    display: block;
+    padding: 10px;
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 4px;
+}
+
+.sidebar-menu a:hover, .sidebar-menu a.active {
+    background-color: var(--primary);
+    color: white;
+}
+
+.dashboard-content {
+    background-color: var(--white);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background-color: var(--background);
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    color: var(--text-light);
+    font-size: 14px;
+}
+
+/* Formulários */
+.form-container {
+    max-width: 600px;
+    margin: 30px auto;
+    padding: 30px;
+}
+
+.form-toggle {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.form-toggle button {
+    padding: 10px 20px;
+    border: none;
+    background-color: transparent;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--text-light);
+}
+
+.form-toggle button.active {
+    color: var(--primary);
+    border-bottom: 2px solid var(--primary);
+    font-weight: 600;
+}
+
+/* Ícone do Carrinho e Página do Carrinho */
+.cart-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.cart-count {
+  position: absolute;
+  top: -8px;
+  right: -12px;
+  background-color: var(--danger);
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cart-page {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 30px;
+  margin-top: 30px;
+}
+.cart-item {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.cart-item-image {
+  width: 120px;
+  height: 80px;
+  background-color: var(--primary-light);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.cart-item-info {
+  flex: 1;
+}
+.cart-item-info h4 {
+  font-size: 18px;
+  margin-bottom: 5px;
+}
+.cart-item-info p {
+  font-size: 14px;
+  color: var(--text-light);
+}
+.cart-item-price {
+  font-size: 18px;
+  font-weight: 600;
+}
+.cart-item-remove {
+  color: var(--danger);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+.cart-summary {
+  background-color: var(--white);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  height: fit-content; 
+}
+.cart-summary h3 {
+  margin-bottom: 20px;
+}
+.cart-total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 20px 0;
+}
+
+/* Modal (para Suporte) */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content {
+  background-color: var(--white);
+  padding: 30px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.modal-header h2 {
+  margin: 0;
+}
+.modal-close {
+  font-size: 24px;
+  font-weight: 700;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* --- NOVO: Estilos do Quiz --- */
+.quiz-container {
+  padding: 20px;
+}
+.quiz-question {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+.quiz-option {
+  display: block;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+.quiz-option.selected {
+  background-color: #e8f4fd;
+  border-color: var(--accent);
+}
+.quiz-results {
+  padding: 20px;
+  text-align: center;
+}
+.quiz-results h2 {
+  margin-bottom: 10px;
+}
+.quiz-results p {
+  font-size: 18px;
+  margin-bottom: 20px;
+}
+/* --- FIM DOS ESTILOS DO QUIZ --- */
+
+/* --- NOVO: Estilos do Course Editor --- */
+.course-editor {
+  margin-top: 30px;
+}
+.editor-module {
+  background: #f9f9f9;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.editor-module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+}
+.editor-module-header h3 {
+  margin: 0;
+}
+.editor-lessons {
+  padding: 15px;
+}
+.editor-lesson {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+.editor-lesson span {
+  font-weight: 500;
+}
+.editor-lesson small {
+  color: var(--text-light);
+}
+/* --- NOVO: Botões de Reordenar --- */
+.editor-lesson-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.order-btn {
+  background: var(--background);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: bold;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 28px;
+  text-align: center;
+}
+.order-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+/* --- FIM --- */
+.add-lesson-form {
+  padding: 15px;
+  border-top: 1px solid var(--border);
+  background: #fdfdfd;
+}
+.add-module-form {
+  margin-bottom: 20px;
+}
+
+/* --- NOVO: Estilos do Quiz Editor --- */
+.quiz-editor-form {
+  padding: 15px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background-color: #fafdff;
+  margin-top: 15px;
+}
+.quiz-editor-form h5 {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+.quiz-option-input {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.quiz-option-input input[type="radio"] {
+  width: auto;
+}
+.quiz-option-input input[type="text"] {
+  flex: 1;
+}
+.quiz-question-added {
+  font-size: 14px;
+  background: var(--white);
+  padding: 5px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+}
+/* --- FIM DOS ESTILOS --- */
+
+
+/* Responsividade */
+@media (max-width: 900px) {
+  .cart-page {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .search-bar {
+        max-width: 100%;
+        margin: 10px 0;
+    }
+    
+    .course-content {
+        flex-direction: column;
+    }
+    
+    .dashboard {
+        grid-template-columns: 1fr;
+    }
+    
+    .footer-content {
+        flex-direction: column;
+        gap: 30px;
+    }
+}

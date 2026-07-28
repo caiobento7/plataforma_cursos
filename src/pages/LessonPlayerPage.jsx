@@ -1,0 +1,237 @@
+import React, { useState, useEffect } from 'react';
+import QuizComponent from '../components/QuizComponent.jsx';
+import QuestionArea from '../components/QuestionArea.jsx';
+import { calculateProgress } from '../utils/courseUtils.js';
+
+const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressUpdate, questions, onAskQuestion }) => {
+    const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
+    const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
+    
+    const courseContent = content || []; 
+  
+    const currentProgress = progress || { completed: new Set(), unlocked: new Set([0]) };
+    const { completed: completedLessons, unlocked: unlockedModules } = currentProgress;
+  
+    if (courseContent.length === 0 || !courseContent[currentModuleIndex] || !courseContent[currentModuleIndex].lessons[currentLessonIndex]) {
+      return (
+        <div className="container" style={{marginTop: '30px'}}>
+          <div className="card">
+            <h2>Conteúdo Indisponível</h2>
+            <p>O instrutor ainda não adicionou aulas a este curso.</p>
+            <button className="btn" onClick={() => navigateTo('studentDashboard')}>Voltar aos Meus Cursos</button>
+          </div>
+        </div>
+      );
+    }
+  
+    const currentLesson = courseContent[currentModuleIndex].lessons[currentLessonIndex];
+    
+    const handleToggleCompletion = () => {
+      if (currentLesson.type !== 'video') return;
+      
+      const newCompleted = new Set(completedLessons);
+      if (newCompleted.has(currentLesson.id)) {
+        newCompleted.delete(currentLesson.id); 
+      } else {
+        newCompleted.add(currentLesson.id); 
+      }
+      onProgressUpdate(courseId, { completed: newCompleted });
+    };
+  
+    const handleQuizPass = () => {
+      const newCompleted = new Set(completedLessons).add(currentLesson.id);
+      onProgressUpdate(courseId, { completed: newCompleted });
+    };
+    
+    useEffect(() => {
+      if (courseContent.length === 0 || !courseContent[currentModuleIndex]) return;
+  
+      const nextModuleIndex = currentModuleIndex + 1;
+      
+      if (nextModuleIndex >= courseContent.length || unlockedModules.has(nextModuleIndex)) {
+        return;
+      }
+  
+      const currentModule = courseContent[currentModuleIndex];
+      const lessonsInModule = currentModule.lessons;
+      const quizzesInModule = lessonsInModule.filter(l => l.type === 'quiz');
+      const contentLessonsInModule = lessonsInModule.filter(l => l.type === 'video');
+  
+      let isModuleComplete = false;
+  
+      if (quizzesInModule.length > 0) {
+        isModuleComplete = quizzesInModule.every(q => completedLessons.has(q.id));
+      } else if (contentLessonsInModule.length > 0) {
+        isModuleComplete = contentLessonsInModule.every(v => completedLessons.has(v.id));
+      } else {
+        isModuleComplete = true; 
+      }
+  
+      if (isModuleComplete) {
+        const newUnlocked = new Set(unlockedModules).add(nextModuleIndex);
+        onProgressUpdate(courseId, { unlocked: newUnlocked });
+      }
+  
+    }, [completedLessons, currentModuleIndex, unlockedModules, courseId, content, onProgressUpdate]);
+  
+  
+    const goToLesson = (moduleIndex, lessonIndex) => {
+      if (!unlockedModules.has(moduleIndex)) {
+        alert('Você precisa concluir o quiz ou todas as aulas do módulo anterior para desbloquear este.');
+        return;
+      }
+      setCurrentModuleIndex(moduleIndex);
+      setCurrentLessonIndex(lessonIndex);
+    };
+  
+    const handlePrev = () => {
+      if (currentLessonIndex > 0) {
+        setCurrentLessonIndex(prev => prev - 1);
+      } else if (currentModuleIndex > 0) {
+        const prevModuleIndex = currentModuleIndex - 1;
+        const prevModuleLessonCount = courseContent[prevModuleIndex].lessons.length;
+        setCurrentModuleIndex(prevModuleIndex);
+        setCurrentLessonIndex(prevModuleLessonCount - 1);
+      }
+    };
+    
+    const handleNext = () => {
+      const currentModuleLessonCount = courseContent[currentModuleIndex].lessons.length;
+      
+      if (currentLessonIndex < currentModuleLessonCount - 1) {
+        setCurrentLessonIndex(prev => prev + 1);
+      } else if (currentModuleIndex < courseContent.length - 1) {
+        if (unlockedModules.has(currentModuleIndex + 1)) {
+          setCurrentModuleIndex(prev => prev + 1);
+          setCurrentLessonIndex(0);
+        } else {
+          alert("Complete todas as aulas ou quizzes deste módulo para avançar.");
+        }
+      } else {
+        alert("Parabéns, você concluiu o curso! (simulado)");
+      }
+    };
+    
+    const localProgress = calculateProgress(courseId, { [courseId]: currentProgress }, courseContent);
+  
+    const renderPlayerContent = () => {
+      switch(currentLesson.type) {
+        case 'video':
+          return (
+            <>
+              <video 
+                key={currentLesson.id} 
+                className="video-player" 
+                controls 
+                src={currentLesson.videoUrl || 'https://youtu.be/6wcnqU9nAms?si=xLStGSVCYn5MyThl'} 
+              >
+                Seu navegador não suporta a tag de vídeo.
+              </video>
+              <h2>{currentLesson.title}</h2>
+              <p>Nesta aula, vamos explorar o tópico: {currentLesson.title}.</p>
+              {currentLesson.documentUrl && (
+                <a 
+                  href={currentLesson.documentUrl} 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-accent" 
+                  style={{marginTop: '20px', display: 'inline-block'}}
+                >
+                  Baixar Material de Apoio
+                </a>
+              )}
+            </>
+          );
+        case 'quiz':
+          return (
+            <QuizComponent 
+              quizData={currentLesson.quizData} 
+              onQuizPass={handleQuizPass}
+              onProceed={handleNext} 
+            />
+          );
+        default:
+          return <h2>Tipo de aula desconhecido.</h2>
+      }
+    };
+  
+    return (
+      <div className="container" style={{ marginTop: '30px' }}>
+        <div className="course-content">
+          <div className="course-main">
+            <div className="card">
+              {renderPlayerContent()}
+              
+              {currentLesson.type === 'video' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+                  <button className="btn" onClick={handlePrev}>Aula Anterior</button>
+                  <button 
+                    className={`btn ${completedLessons.has(currentLesson.id) ? 'btn' : 'btn-success'}`} 
+                    onClick={handleToggleCompletion}
+                  >
+                    {completedLessons.has(currentLesson.id) ? 'Desmarcar Conclusão' : 'Marcar como Concluída'}
+                  </button>
+                  <button className="btn btn-accent" onClick={handleNext}>Próxima Aula</button>
+                </div>
+              )}
+  
+              {currentLesson.type === 'quiz' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+                  <button className="btn" onClick={handlePrev}>Aula Anterior</button>
+                  <button className="btn btn-accent" onClick={handleNext}>Próxima Aula</button>
+                </div>
+              )}
+            </div>
+            
+            <QuestionArea
+              courseId={courseId}
+              lessonId={currentLesson.id}
+              questions={questions}
+              onAskQuestion={onAskQuestion}
+            />
+          </div>
+          
+          <div className="course-sidebar">
+            <div className="card">
+              <h4>Progresso do Curso</h4>
+              <div className="progress-bar-container">
+                <div className="progress-bar" style={{ width: `${localProgress}%` }}></div>
+              </div>
+              <p>{localProgress}% concluído (aulas de vídeo)</p>
+            </div>
+  
+            <div className="card">
+              <h3>Conteúdo do Curso</h3>
+              {courseContent.map((module, moduleIndex) => {
+                const isModuleLocked = !unlockedModules.has(moduleIndex);
+                return (
+                  <div className="module" key={module.id}>
+                    <div className={`module-header ${isModuleLocked ? 'locked' : ''}`}>
+                      {module.title} {isModuleLocked ? '(Bloqueado)' : ''}
+                    </div>
+                    {module.lessons.map((lesson, lessonIndex) => {
+                      const isActive = moduleIndex === currentModuleIndex && lessonIndex === currentLessonIndex;
+                      const isCompleted = completedLessons.has(lesson.id);
+                      
+                      return (
+                        <div 
+                          className={`lesson ${isActive ? 'active' : ''} ${isModuleLocked ? 'locked' : ''} ${isCompleted ? 'completed' : ''}`} 
+                          key={lesson.id}
+                          onClick={() => goToLesson(moduleIndex, lessonIndex)}
+                        >
+                          <span>{lesson.title}</span>
+                          <span>{isCompleted ? '✓' : lesson.duration}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  export default LessonPlayerPage;
