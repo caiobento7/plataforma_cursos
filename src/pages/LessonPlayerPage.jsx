@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import QuizComponent from '../components/QuizComponent.jsx';
 import QuestionArea from '../components/QuestionArea.jsx';
 import { calculateProgress } from '../utils/courseUtils.js';
@@ -7,11 +7,53 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
     const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
     const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
     
-    const courseContent = content || []; 
-  
-    const currentProgress = progress || { completed: new Set(), unlocked: new Set([0]) };
+    // Memorizados para manter a referência estável entre renderizações: sem isso,
+    // o `|| []` e o `new Set()` criariam objetos novos a cada render e o efeito
+    // de desbloqueio de módulos abaixo dispararia sem necessidade.
+    const courseContent = useMemo(() => content || [], [content]);
+
+    const currentProgress = useMemo(
+      () => progress || { completed: new Set(), unlocked: new Set([0]) },
+      [progress]
+    );
     const { completed: completedLessons, unlocked: unlockedModules } = currentProgress;
-  
+
+    // ATENÇÃO: este efeito precisa ficar ANTES do return antecipado de
+    // "Conteúdo Indisponível". Hooks devem ser chamados na mesma ordem em todas
+    // as renderizações; se ele ficasse depois do return, um curso sem aulas
+    // registraria menos hooks e o React quebraria ao receber o conteúdo depois.
+    // O caso "sem conteúdo" já é tratado pela guarda na primeira linha do efeito.
+    useEffect(() => {
+      if (courseContent.length === 0 || !courseContent[currentModuleIndex]) return;
+
+      const nextModuleIndex = currentModuleIndex + 1;
+
+      if (nextModuleIndex >= courseContent.length || unlockedModules.has(nextModuleIndex)) {
+        return;
+      }
+
+      const currentModule = courseContent[currentModuleIndex];
+      const lessonsInModule = currentModule.lessons;
+      const quizzesInModule = lessonsInModule.filter(l => l.type === 'quiz');
+      const contentLessonsInModule = lessonsInModule.filter(l => l.type === 'video');
+
+      let isModuleComplete = false;
+
+      if (quizzesInModule.length > 0) {
+        isModuleComplete = quizzesInModule.every(q => completedLessons.has(q.id));
+      } else if (contentLessonsInModule.length > 0) {
+        isModuleComplete = contentLessonsInModule.every(v => completedLessons.has(v.id));
+      } else {
+        isModuleComplete = true;
+      }
+
+      if (isModuleComplete) {
+        const newUnlocked = new Set(unlockedModules).add(nextModuleIndex);
+        onProgressUpdate(courseId, { unlocked: newUnlocked });
+      }
+
+    }, [completedLessons, currentModuleIndex, unlockedModules, courseId, courseContent, onProgressUpdate]);
+
     if (courseContent.length === 0 || !courseContent[currentModuleIndex] || !courseContent[currentModuleIndex].lessons[currentLessonIndex]) {
       return (
         <div className="container" style={{marginTop: '30px'}}>
@@ -43,38 +85,6 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
       onProgressUpdate(courseId, { completed: newCompleted });
     };
     
-    useEffect(() => {
-      if (courseContent.length === 0 || !courseContent[currentModuleIndex]) return;
-  
-      const nextModuleIndex = currentModuleIndex + 1;
-      
-      if (nextModuleIndex >= courseContent.length || unlockedModules.has(nextModuleIndex)) {
-        return;
-      }
-  
-      const currentModule = courseContent[currentModuleIndex];
-      const lessonsInModule = currentModule.lessons;
-      const quizzesInModule = lessonsInModule.filter(l => l.type === 'quiz');
-      const contentLessonsInModule = lessonsInModule.filter(l => l.type === 'video');
-  
-      let isModuleComplete = false;
-  
-      if (quizzesInModule.length > 0) {
-        isModuleComplete = quizzesInModule.every(q => completedLessons.has(q.id));
-      } else if (contentLessonsInModule.length > 0) {
-        isModuleComplete = contentLessonsInModule.every(v => completedLessons.has(v.id));
-      } else {
-        isModuleComplete = true; 
-      }
-  
-      if (isModuleComplete) {
-        const newUnlocked = new Set(unlockedModules).add(nextModuleIndex);
-        onProgressUpdate(courseId, { unlocked: newUnlocked });
-      }
-  
-    }, [completedLessons, currentModuleIndex, unlockedModules, courseId, content, onProgressUpdate]);
-  
-  
     const goToLesson = (moduleIndex, lessonIndex) => {
       if (!unlockedModules.has(moduleIndex)) {
         alert('Você precisa concluir o quiz ou todas as aulas do módulo anterior para desbloquear este.');

@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 
 const CreateCourseForm = ({ onCourseCreate }) => {
     const [title, setTitle] = useState('');
-    const [instructor, setInstructor] = useState('Professor (Logado)'); 
+    // Autor fixo: a plataforma ainda não tem autenticação real, então o curso
+    // criado é sempre atribuído ao professor da sessão simulada.
+    const instructor = 'Professor (Logado)';
     const [price, setPrice] = useState(0);
     const [level, setLevel] = useState('Iniciante');
     const [description, setDescription] = useState('');

@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 
 // Importar Dados
 import { initialCourses, initializeContentDB, initialQuestions } from './data/initialData.js';
+
+// Importar Hooks
+import usePersistedState from './hooks/usePersistedState.js';
 
 // Importar Componentes
 import Header from './components/Header.jsx';
@@ -19,20 +22,48 @@ import CartPage from './pages/CartPage.jsx';
 import StudentDashboardPage from './pages/StudentDashboardPage.jsx';
 
 
+// --- PERSISTÊNCIA DO PROGRESSO ---
+// O progresso guarda as aulas concluídas e liberadas em Sets, que o JSON não
+// representa (JSON.stringify(new Set([1])) devolve "{}"). Por isso a conversão
+// para array na gravação e a reconstrução dos Sets na leitura.
+
+const serializeProgress = (progress) =>
+  Object.fromEntries(
+    Object.entries(progress).map(([courseId, { completed, unlocked }]) => [
+      courseId,
+      { completed: [...completed], unlocked: [...unlocked] }
+    ])
+  );
+
+const deserializeProgress = (stored) =>
+  Object.fromEntries(
+    Object.entries(stored).map(([courseId, { completed, unlocked }]) => [
+      courseId,
+      { completed: new Set(completed), unlocked: new Set(unlocked) }
+    ])
+  );
+
+const progressStorageOptions = {
+  serialize: serializeProgress,
+  deserialize: deserializeProgress
+};
+
 // --- COMPONENTE PRINCIPAL (APP) ---
 
 const App = () => {
-  const [currentPage, setCurrentPage] =useState('home');
+  // Estado de navegação e de interface: intencionalmente NÃO persistido, para
+  // que a aplicação sempre reabra na home, sem filtros ou buscas residuais.
+  const [currentPage, setCurrentPage] = useState('home');
   const [currentPageData, setCurrentPageData] = useState(null); 
   const [selectedCourseId, setSelectedCourseId] = useState(null);
-  const [cart, setCart] = useState([]);
-  
-  const [allCourses, setAllCourses] = useState(initialCourses);
-  const [purchasedCourses, setPurchasedCourses] = useState([]);
-  const [courseProgress, setCourseProgress] = useState({});
-  const [questionsDB, setQuestionsDB] = useState(initialQuestions);
-  const [coursesContentDB, setCoursesContentDB] = useState(initializeContentDB);
-  
+  // Dados da aplicação: persistidos no navegador para sobreviver ao F5.
+  const [cart, setCart] = usePersistedState('cart', []);
+  const [allCourses, setAllCourses] = usePersistedState('allCourses', initialCourses);
+  const [purchasedCourses, setPurchasedCourses] = usePersistedState('purchasedCourses', []);
+  const [courseProgress, setCourseProgress] = usePersistedState('courseProgress', {}, progressStorageOptions);
+  const [questionsDB, setQuestionsDB] = usePersistedState('questionsDB', initialQuestions);
+  const [coursesContentDB, setCoursesContentDB] = usePersistedState('coursesContentDB', initializeContentDB);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     level: 'all',
@@ -89,7 +120,9 @@ const App = () => {
     }
   };
 
-  const handleProgressUpdate = (courseId, newProgressData) => {
+  // useCallback para manter a referência estável: o LessonPlayerPage usa esta
+  // função como dependência de um useEffect, que sem isso rodaria a cada render.
+  const handleProgressUpdate = useCallback((courseId, newProgressData) => {
     setCourseProgress(prev => {
       const current = prev[courseId] || { completed: new Set(), unlocked: new Set([0]) };
       return {
@@ -100,7 +133,7 @@ const App = () => {
         }
       };
     });
-  };
+  }, [setCourseProgress]);
 
   const handleAskQuestion = ({ courseId, lessonId, text }) => {
     const newQuestion = {
