@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<title>CursoLab — Fluxogramas do Sistema</title>
+<style>
+  @page { size: A4; margin: 2.5cm 2cm 2cm 3cm; }
+  html { font-size: 11.5pt; }
+  body { margin:0; color:#111827; line-height:1.55;
+         font-family:'Times New Roman',Georgia,serif; text-align:justify; }
+
+  .capa { page-break-after: always; text-align:center;
+          display:flex; flex-direction:column; justify-content:space-between;
+          min-height:24cm; padding-top:1cm; }
+  .capa .instituicao { font-size:13pt; font-weight:bold; line-height:1.5; }
+  .capa .titulo { font-size:20pt; font-weight:bold; margin-top:2cm; }
+  .capa .subtitulo { font-size:13pt; margin-top:.5cm; color:#374151; }
+  .capa .autoria { font-size:12pt; text-align:left; line-height:1.8; }
+  .capa .marcador { margin:1.2cm auto 0; padding:10px 14px; max-width:15cm;
+                    border:1px dashed #9ca3af; border-radius:4px;
+                    font-family:'Segoe UI',Arial,sans-serif; font-size:9.5pt;
+                    color:#6b7280; text-align:center; }
+
+  h1 { font-size:15pt; text-align:center; margin:0 0 1.1em; text-transform:uppercase; }
+  h2 { font-size:13.5pt; margin:1.6em 0 .6em; text-align:left; page-break-after:avoid; }
+  p { margin:0 0 .7em; text-indent:1.25cm; }
+  .legenda, td p { text-indent:0; }
+
+  /* Cada figura ocupa a própria página, centralizada e sem estourar a margem. */
+  .figura { display:block; margin:1.2em auto .4em; max-width:100%;
+            max-height:20cm; object-fit:contain; page-break-inside:avoid; }
+  .legenda { text-align:center; font-size:10pt; color:#374151;
+             margin:0 0 1.6em; page-break-before:avoid; page-break-after:always; }
+
+  table { width:100%; border-collapse:collapse; margin:.9em 0 1.2em;
+          font-family:'Segoe UI',Arial,sans-serif; font-size:9.5pt;
+          page-break-inside:avoid; }
+  th, td { border:1px solid #cbd5e1; padding:5px 8px; text-align:left; vertical-align:top; }
+  th { background:#eef2f7; font-weight:600; }
+</style></head>
+<body>
+
+<div class="capa">
+  <div>
+    <div class="instituicao">
+      UNIVERSIDADE DO ESTADO DO RIO DE JANEIRO<br>INSTITUTO POLITÉCNICO
+    </div>
+    <div class="marcador">
+      Espaço reservado para o brasão da UERJ e a marca do Instituto Politécnico.
+    </div>
+    <div class="titulo">Plataforma de Cursos</div>
+    <div class="subtitulo">CursoLab — Fluxogramas do Sistema</div>
+  </div>
+  <div class="autoria">
+    <strong>Aluno:</strong> Caio Bento<br>
+    <strong>Professor:</strong> Anderson Namen
+  </div>
+</div>
+
+<h1>FLUXOGRAMAS DO SISTEMA</h1>
+<p>Este documento reúne os seis fluxogramas que descrevem o funcionamento do
+CursoLab. Todos foram elaborados a partir do sistema em execução, e não de uma
+especificação prévia: representam o comportamento efetivamente implementado.</p>
+<h2>1. Convenção de cores</h2>
+<p>A mesma legenda vale para todos os diagramas deste documento.</p>
+<table>
+<thead>
+<tr>
+<th>Cor</th>
+<th>Camada ou situação representada</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Azul</td>
+<td>Camada de apresentação — o que ocorre no navegador</td>
+</tr>
+<tr>
+<td>Verde</td>
+<td>Camada de aplicação — regras de negócio executadas na API</td>
+</tr>
+<tr>
+<td>Amarelo</td>
+<td>Camada de dados — informação gravada no PostgreSQL</td>
+</tr>
+<tr>
+<td>Roxo</td>
+<td>Estado mantido apenas em memória, perdido ao recarregar a página</td>
+</tr>
+<tr>
+<td>Vermelho</td>
+<td>Caminho de erro ou operação recusada</td>
+</tr>
+<tr>
+<td>Cinza</td>
+<td>Ponto de decisão</td>
+</tr>
+</tbody></table>
+<p>A distinção entre amarelo e roxo é a mais relevante para a leitura: ela separa
+o que sobrevive ao recarregamento da página do que ainda depende de integração
+com a API.</p>
+<h2>2. Arquitetura da solução</h2>
+<p>O diagrama a seguir apresenta as três camadas do sistema e o trajeto completo
+de uma requisição, desde a ação do usuário até o banco de dados e de volta à
+interface. A chave secreta de acesso ao banco permanece exclusivamente na
+camada de aplicação e nunca é enviada ao navegador.</p>
+<img class="figura" src="FL-01-arquitetura.png" alt="Figura 1"><p class="legenda">Figura 1 - Arquitetura em camadas e trajeto de uma requisição</p><h2>3. Jornada do aluno</h2>
+<p>A jornada do aluno foi dividida em duas etapas. A primeira cobre a descoberta
+do curso e a matrícula. O sistema exige autenticação antes de concluir a
+matrícula e recusa uma segunda matrícula no mesmo curso, restrição garantida
+pela unicidade do par aluno-curso no banco.</p>
+<img class="figura" src="FL-02-aluno-aquisicao.png" alt="Figura 2"><p class="legenda">Figura 2 - Jornada do aluno: descoberta e matrícula</p><p>A segunda etapa cobre o consumo do conteúdo. Cada aula segue um de dois
+caminhos, conforme seja uma aula em vídeo ou um quiz. Em ambos os casos, a
+conclusão é gravada no banco antes de a trilha ser recalculada.</p>
+<img class="figura" src="FL-03-aluno-aprendizado.png" alt="Figura 3"><p class="legenda">Figura 3 - Jornada do aluno: aprendizado e certificado</p><h2>4. Autenticação e controle de acesso</h2>
+<p>O controle de acesso é aplicado no servidor, por dois middlewares encadeados.
+A verificação ocorre onde o cliente não alcança: ocultar um elemento na
+interface não constitui controle de acesso, pois a requisição poderia ser
+enviada diretamente à API.</p>
+<img class="figura" src="FL-04-autenticacao-autorizacao.png" alt="Figura 4"><p class="legenda">Figura 4 - Decisão entre executar, recusar por autenticação ou por permissão</p><h2>5. Progressão e desbloqueio de módulos</h2>
+<p>Esta é a regra de negócio central do sistema. Dois aspectos do diagrama
+merecem destaque.</p>
+<p>O primeiro é que os módulos liberados não são gravados no banco. Eles são
+derivados do conjunto de aulas concluídas e recalculados a cada carregamento.
+Persistir as duas informações criaria um segundo estado capaz de divergir do
+primeiro.</p>
+<p>O segundo é a gravação otimista: a interface marca a aula imediatamente e
+desfaz a marca caso a API responda com erro, de modo que o aluno nunca veja um
+progresso que o banco não registrou.</p>
+<img class="figura" src="FL-05-progressao-modulos.png" alt="Figura 5"><p class="legenda">Figura 5 - Regra de progressão e desbloqueio de módulos</p><h2>6. Fluxo do professor</h2>
+<p>O último diagrama descreve o backoffice. A criação de cursos, o gerenciamento
+do catálogo, os indicadores e a central de suporte operam de ponta a ponta,
+com gravação no banco.</p>
+<p>O editor de conteúdo aparece em roxo porque mantém módulos e aulas apenas em
+memória. As rotas correspondentes já existem e estão protegidas na API; falta
+a interface passar a chamá-las. O trabalho restante é de integração, não de
+concepção.</p>
+<img class="figura" src="FL-06-fluxo-do-professor.png" alt="Figura 6"><p class="legenda">Figura 6 - Fluxo do professor no backoffice administrativo</p>
+
+</body></html>

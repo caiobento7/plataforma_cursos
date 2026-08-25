@@ -1,7 +1,8 @@
 import React from 'react';
+import { Star } from 'lucide-react';
 
-const CourseDetailsPage = ({ navigateTo, course, content, addToCart }) => {
-    const reviewCount = course ? 500 + (course.id * 173) % 2000 : 0;
+const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isAuthenticated }) => {
+    const reviewCount = course?.reviewCount ?? 0;
 
     if (!course) {
       return (
@@ -12,7 +13,16 @@ const CourseDetailsPage = ({ navigateTo, course, content, addToCart }) => {
       );
     }
     
-    const courseContent = content || []; 
+    const courseContent = content || [];
+    const handleAddToCart = () => {
+      if (!isAuthenticated) return navigateTo('login', { checkoutCourseId: course.id });
+      addToCart(course);
+    };
+    const handleCheckout = () => {
+      if (!isAuthenticated) return navigateTo('login', { checkoutCourseId: course.id });
+      addToCart(course);
+      navigateTo('cart');
+    };
   
     return (
       <>
@@ -23,15 +33,13 @@ const CourseDetailsPage = ({ navigateTo, course, content, addToCart }) => {
             <div className="course-meta">
               <div>
                 <div>Instrutor: {course.instructor}</div>
-                <div>{course.rating} ★ ({reviewCount} avaliações)</div>
+                <div className="course-rating"><Star size={15} fill="currentColor" aria-hidden="true" /> {course.rating} ({reviewCount} avaliações)</div>
               </div>
               <div className="course-actions">
-                <button className="btn" onClick={() => addToCart(course)}>
-                  Adicionar ao Carrinho
-                </button>
-                <button className="btn btn-accent" onClick={() => { addToCart(course); navigateTo('cart'); }}>
-                  Comprar Agora
-                </button>
+                {isAuthenticated ? <>
+                  <button className="btn" onClick={handleAddToCart}>Adicionar ao Carrinho</button>
+                  <button className="btn btn-accent" onClick={handleCheckout}>Comprar Agora</button>
+                </> : <button className="btn btn-accent" onClick={handleCheckout}>Entrar para comprar</button>}
               </div>
             </div>
           </div>
@@ -77,7 +85,7 @@ const CourseDetailsPage = ({ navigateTo, course, content, addToCart }) => {
                 <div className="review">
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                     <strong>Carlos Mendes</strong>
-                    <span>5 ★</span>
+                    <span className="course-rating">5 <Star size={14} fill="currentColor" aria-hidden="true" /></span>
                   </div>
                   <p>Excelente curso para iniciantes. O professor explica de forma clara e objetiva.</p>
                 </div>
@@ -96,9 +104,9 @@ const CourseDetailsPage = ({ navigateTo, course, content, addToCart }) => {
                   <button 
                     className="btn btn-accent" 
                     style={{ width: '100%' }} 
-                    onClick={() => { addToCart(course); navigateTo('cart'); }}
+                    onClick={handleCheckout}
                   >
-                    {course.price === 0 ? 'Inscrever-se Agora' : `Comprar Agora - R$ ${course.price.toFixed(2)}`}
+                    {!isAuthenticated ? 'Entrar para comprar' : course.price === 0 ? 'Inscrever-se Agora' : `Comprar Agora - R$ ${course.price.toFixed(2)}`}
                   </button>
                 </div>
                 <div style={{ marginTop: '15px' }}>

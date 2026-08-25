@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
+import { ArrowRight } from 'lucide-react';
 
 const CreateCourseForm = ({ onCourseCreate }) => {
     const [title, setTitle] = useState('');
     // Autor fixo: a plataforma ainda não tem autenticação real, então o curso
     // criado é sempre atribuído ao professor da sessão simulada.
-    const instructor = 'Professor (Logado)';
     const [price, setPrice] = useState(0);
     const [level, setLevel] = useState('Iniciante');
     const [description, setDescription] = useState('');
@@ -14,7 +14,6 @@ const CreateCourseForm = ({ onCourseCreate }) => {
       const newCourse = {
         id: Date.now(),
         title,
-        instructor,
         price: parseFloat(price),
         level,
         rating: 0, 
@@ -72,8 +71,8 @@ const CreateCourseForm = ({ onCourseCreate }) => {
             </select>
           </div>
         </div>
-        <button type="submit" className="btn btn-success" style={{ width: '100%' }}>
-          Próximo: Adicionar Conteúdo &rarr;
+        <button type="submit" className="btn admin-submit-button" style={{ width: '100%' }}>
+          Próximo: Adicionar Conteúdo <ArrowRight size={17} aria-hidden="true" />
         </button>
       </form>
     );

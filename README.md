@@ -1,116 +1,97 @@
 # CursoLab
 
-Plataforma de cursos online, no estilo Udemy/Coursera, desenvolvida como trabalho da
-disciplina de **Princípios de Engenharia de Software**.
+Plataforma de cursos online desenvolvida para a disciplina de Princípios de
+Engenharia de Software. O projeto possui uma interface React e uma API REST
+própria, conectada a um banco PostgreSQL hospedado no Supabase.
 
-O sistema atende dois perfis de usuário — **aluno** e **professor** — cobrindo o ciclo
-completo de um curso: da criação do conteúdo pelo instrutor até a conclusão das aulas,
-os quizzes e o acompanhamento de progresso pelo aluno.
+## Arquitetura
 
-## Funcionalidades
+```text
+React + Vite (frontend) -> Express (API REST) -> Supabase PostgreSQL + Auth
+```
 
-### Aluno
-
-- **Catálogo de cursos** com busca por título ou instrutor, autocomplete e filtros
-  combináveis de nível, faixa de preço e avaliação.
-- **Carrinho de compras** e fluxo de compra simulado.
-- **Player de aulas** com vídeo, material de apoio em PDF e área de dúvidas por aula.
-- **Progressão sequencial**: os módulos começam bloqueados e são liberados
-  automaticamente conforme o anterior é concluído — por todas as aulas ou pelo quiz,
-  quando o módulo tiver um.
-- **Quizzes** com nota mínima de aprovação definida pelo professor (padrão: 70%).
-- **Painel do aluno** com os cursos adquiridos e o percentual concluído de cada um.
-
-### Professor
-
-- **Painel do instrutor** com visão geral, análises e gestão dos cursos.
-- **Criação de cursos em duas etapas**: primeiro os metadados (título, preço, nível,
-  descrição), depois o conteúdo.
-- **Editor de conteúdo** para montar módulos e aulas, definindo tipo (vídeo ou quiz),
-  duração, URL do vídeo e material de apoio.
-- **Editor de quizzes** para cadastrar perguntas, alternativas e a resposta correta.
-- **Área de dúvidas** para responder às perguntas enviadas pelos alunos nas aulas.
+O Express concentra as regras de negócio e acessa o Supabase por uma chave
+secreta mantida apenas no ambiente do servidor. O frontend nunca acessa essa
+chave ou o banco diretamente.
 
 ## Tecnologias
 
-- **React 19** — biblioteca de interface
-- **Vite 7** — servidor de desenvolvimento e empacotamento
-- **ESLint 9** — análise estática
-- **CSS puro** — sem framework de estilo, centralizado em `src/index.css`
+- React 19 e Vite 7
+- Node.js e Express 5
+- Supabase Auth e PostgreSQL
+- ESLint 9 e CSS puro
+
+## Funcionalidades do backend
+
+- Cadastro e login de alunos por e-mail e senha.
+- Perfis com papéis `student` e `admin`.
+- Backoffice administrativo protegido: o administrador pode criar, editar e
+  excluir qualquer curso cadastrado.
+- Matrículas vinculando aluno e curso.
+- Módulos, aulas em vídeo e quizzes com perguntas e nota mínima.
+- Registro de progresso por aula para cada aluno matriculado.
+- Área de dúvidas, com envio pelo aluno e resposta pelo administrador.
 
 ## Como executar
 
-Requer [Node.js](https://nodejs.org/) 20 ou superior.
+Pré-requisito: Node.js 20 ou superior e um projeto Supabase configurado.
+
+### 1. Banco de dados
+
+No SQL Editor do Supabase, execute nesta ordem:
+
+1. `backend/database/schema.sql`
+2. `backend/database/002_learning_content.sql`
+3. `backend/database/seed.sql` (cursos iniciais)
+
+Em um banco que já possuía o papel `teacher`, execute também
+`backend/database/003_admin_role.sql` para convertê-lo em `admin`.
+
+### 2. Configurar o backend
+
+Crie `backend/.env` a partir de `backend/.env.example`:
+
+```env
+PORT=3001
+CLIENT_ORIGIN=http://localhost:5173
+SUPABASE_URL=https://seu-project-ref.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_sua_chave_publica
+SUPABASE_SECRET_KEY=sb_secret_sua_chave_secreta
+```
+
+Nunca versione ou exponha a chave secreta.
+
+### 3. Iniciar os serviços
+
+Na raiz do projeto:
 
 ```bash
-npm install     # instala as dependências
-npm run dev     # inicia em http://localhost:5173
+npm install
+npm run server    # API: http://localhost:3001
+npm run dev       # frontend: http://localhost:5173
 ```
 
-Outros comandos disponíveis:
+As dependências da API são instaladas em `backend/` e já estão registradas no
+seu próprio `package.json`.
 
-```bash
-npm run build     # gera a versão de produção em dist/
-npm run preview   # serve localmente a versão de produção
-npm run lint      # executa a análise estática
-```
+O endpoint `GET /api/health` confirma que o servidor está ativo. A referência
+completa das rotas está em [`backend/README.md`](backend/README.md).
 
-## Estrutura do projeto
+## Estrutura
 
-```
+```text
+backend/
+  database/       # scripts SQL de schema, migração e carga inicial
+  src/            # API Express, autenticação e regras de acesso
 src/
-├── components/    # Componentes reutilizáveis (cabeçalho, card de curso, quiz...)
-├── pages/         # Telas da aplicação, uma por rota lógica
-├── hooks/         # Hooks customizados
-├── data/          # Dados iniciais que populam a aplicação
-├── utils/         # Funções auxiliares (cálculo de progresso)
-├── App.jsx        # Componente raiz: estado global e roteamento
-└── index.css      # Estilos da aplicação
+  components/     # componentes React
+  pages/          # telas do sistema
+  data/           # dados temporários do frontend durante a migração
 ```
 
-## Decisões de arquitetura
+## Estado atual
 
-### Estado centralizado no componente raiz
-
-Todo o estado compartilhado vive no `App.jsx` e desce para as telas por props. Não foi
-usado Context API nem biblioteca de gerenciamento de estado: para a quantidade de telas
-deste projeto, o fluxo explícito de dados é mais legível e torna as dependências entre
-componentes visíveis no próprio código.
-
-### Persistência no navegador
-
-Como não há back-end, os dados são gravados no `localStorage` através do hook
-customizado `usePersistedState`, que se comporta como o `useState` mas espelha o valor
-no navegador. Isso permite que cursos criados, compras e progresso sobrevivam ao
-recarregamento da página.
-
-Um detalhe relevante: o progresso do aluno usa `Set` para as aulas concluídas e os
-módulos liberados, e `JSON.stringify` não representa `Set` — serializa como `{}`,
-perdendo os dados silenciosamente. Por isso o hook aceita conversores opcionais de
-serialização, usados para converter `Set ⇄ Array` na gravação e na leitura.
-
-O estado de navegação e de interface (página atual, busca, filtros) foi deixado fora da
-persistência de propósito, para que a aplicação sempre reabra na home, sem filtros ou
-buscas residuais de uma sessão anterior.
-
-### Roteamento por estado
-
-A navegação é controlada por uma variável de estado no `App.jsx`, sem biblioteca de
-rotas. A consequência é que a aplicação tem uma URL única e o botão "voltar" do
-navegador não percorre o histórico interno. A troca foi consciente: manteve o projeto
-sem dependências além do React e simplificou a hospedagem, ao custo de URLs não
-compartilháveis.
-
-## Limitações conhecidas
-
-Por se tratar de um trabalho acadêmico focado na interface e na modelagem do domínio,
-os seguintes pontos foram deliberadamente simplificados:
-
-- **Não há back-end nem banco de dados.** Os dados ficam no navegador de cada usuário,
-  ou seja, não são compartilhados entre pessoas ou dispositivos. Limpar os dados do
-  navegador reinicia a aplicação.
-- **Autenticação é simulada.** As telas de login e cadastro não validam credenciais, e
-  os painéis de aluno e professor ficam acessíveis sem autenticação.
-- **Pagamento é simulado.** A finalização da compra apenas move os cursos do carrinho
-  para a lista de adquiridos, sem qualquer integração financeira.
-- **Vídeos e PDFs são de exemplo**, apontando para arquivos públicos de demonstração.
+O backend e o banco foram validados isoladamente com cadastro, login, perfil,
+CRUD de cursos, matrícula, conteúdo, quiz, progresso e dúvidas. A próxima fase
+é substituir gradualmente os dados temporários e o `localStorage` do React por
+chamadas à API REST.

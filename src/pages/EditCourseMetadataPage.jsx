@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 
 const EditCourseMetadataPage = ({ navigateTo, course, onUpdateCourse }) => {
     const [title, setTitle] = useState(course?.title ?? '');
-    const [instructor, setInstructor] = useState(course?.instructor ?? '');
     const [price, setPrice] = useState(course?.price ?? 0);
     const [level, setLevel] = useState(course?.level ?? 'Iniciante');
     const [imageUrl, setImageUrl] = useState(course?.imageUrl ?? '');
@@ -12,7 +12,6 @@ const EditCourseMetadataPage = ({ navigateTo, course, onUpdateCourse }) => {
       const updatedCourse = {
         ...course,
         title,
-        instructor,
         price: parseFloat(price),
         level,
         imageUrl,
@@ -34,7 +33,7 @@ const EditCourseMetadataPage = ({ navigateTo, course, onUpdateCourse }) => {
     return (
       <div className="container">
         <button className="btn" onClick={() => navigateTo('dashboard', 'manage-courses')} style={{marginTop: '20px'}}>
-          &larr; Voltar para Gerenciador
+          <ArrowLeft size={16} aria-hidden="true" /> Voltar para Gerenciador
         </button>
         <div className="card form-container">
           <h2>Editar Detalhes do Curso</h2>
@@ -46,16 +45,6 @@ const EditCourseMetadataPage = ({ navigateTo, course, onUpdateCourse }) => {
                 id="course-title" 
                 value={title} 
                 onChange={(e) => setTitle(e.target.value)} 
-                required 
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="course-instructor">Instrutor</label>
-              <input 
-                type="text" 
-                id="course-instructor" 
-                value={instructor} 
-                onChange={(e) => setInstructor(e.target.value)} 
                 required 
               />
             </div>

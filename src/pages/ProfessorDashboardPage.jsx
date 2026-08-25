@@ -1,105 +1,162 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { BookOpen, CircleCheck, CircleDollarSign, Layers, LayoutDashboard, List, MessageSquare, MonitorCog, Pencil, Plus, RefreshCw, Send, Settings, ShieldCheck, TrendingUp, Users, X } from 'lucide-react';
+import backofficeBackground from '../assets/backoffice-background.png';
 import CourseCard from '../components/CourseCard.jsx'; // Corrigido
 import CreateCourseForm from '../components/CreateCourseForm.jsx'; // Corrigido
+import { api } from '../services/api.js';
+
+const AdminSectionHeader = ({ title, description, action }) => (
+  <div className="admin-section-header">
+    <div>
+      <h2>{title}</h2>
+      <p>{description}</p>
+    </div>
+    {action}
+  </div>
+);
 
 const ProfessorDashboardPage = ({ 
   navigateTo, 
   handleCreateCourse, 
   allCourses, 
+  analytics,
   handleDeleteCourse,
-  questions,
-  onAnswerQuestion,
-  activeTab: initialTab, 
-  coursesContentDB 
+  activeTab: initialTab
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab || 'overview');
-  const [replyText, setReplyText] = useState({}); 
-  const [selectedQuestion, setSelectedQuestion] = useState(null); 
+  const [isCatalogSummaryOpen, setIsCatalogSummaryOpen] = useState(false);
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [ticketResponses, setTicketResponses] = useState({});
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false);
+  const [ticketFeedback, setTicketFeedback] = useState('');
 
-  const handleReplyChange = (questionId, text) => {
-    setReplyText(prev => ({ ...prev, [questionId]: text }));
-  };
+  const loadSupportTickets = useCallback(async () => {
+    setIsLoadingTickets(true);
+    setTicketFeedback('');
+    try {
+      setSupportTickets(await api.getAdminSupportTickets());
+    } catch (error) {
+      setTicketFeedback(error.message);
+    } finally {
+      setIsLoadingTickets(false);
+    }
+  }, []);
 
-  const handleReplySubmit = (questionId) => {
-    if (!replyText[questionId]) return;
-    onAnswerQuestion(questionId, replyText[questionId]);
-    setReplyText(prev => ({ ...prev, [questionId]: '' })); 
-    setSelectedQuestion(null); 
+  useEffect(() => { loadSupportTickets(); }, [loadSupportTickets]);
+
+  const updateSupportTicket = async (ticketId, status) => {
+    const adminResponse = ticketResponses[ticketId] || '';
+    if (status === 'answered' && !adminResponse.trim()) {
+      setTicketFeedback('Escreva uma resposta antes de enviar.');
+      return;
+    }
+
+    try {
+      const ticket = await api.updateAdminSupportTicket(ticketId, { status, adminResponse });
+      setSupportTickets((previous) => previous.map((item) => item.id === ticketId ? ticket : item));
+      setTicketResponses((previous) => ({ ...previous, [ticketId]: '' }));
+      setTicketFeedback(status === 'closed' ? 'Chamado encerrado.' : 'Resposta enviada ao aluno.');
+    } catch (error) {
+      setTicketFeedback(error.message);
+    }
   };
   
-  const myCourses = allCourses.filter(c => c.instructor === 'Professor (Logado)');
+  const managedCourses = allCourses;
+  const freeCourses = managedCourses.filter((course) => course.price === 0).length;
+  const paidCourses = managedCourses.length - freeCourses;
+  const courseLevels = new Set(managedCourses.map((course) => course.level)).size;
+  const revenue30d = Number(analytics?.revenue30d) || 0;
+  const newStudents30d = Number(analytics?.newStudents30d) || 0;
+  const totalEnrollments = Number(analytics?.totalEnrollments) || 0;
+  const averageRating = Number(analytics?.averageRating) || 0;
+  const formattedRevenue30d = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(revenue30d);
   
-  const unansweredQuestions = questions.filter(q => !q.answer);
-
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
         return (
-          <>
-            <h2>Visão Geral</h2>
+          <div className="admin-overview">
+            <div className="admin-overview-header">
+              <div>
+                <h2>Visão geral</h2>
+                <p>Tenha uma visão rápida do catálogo e das atividades da plataforma.</p>
+              </div>
+              <button type="button" className="admin-primary-action" onClick={() => setActiveTab('new-course')}><Plus size={16} aria-hidden="true" /> Novo curso</button>
+            </div>
+            <section className="admin-catalog-glance"><div><span>Catálogo</span><p>Uma visão rápida do conteúdo disponível na plataforma.</p></div><button type="button" onClick={() => setIsCatalogSummaryOpen(true)}>Ver resumo</button></section>
+            {isCatalogSummaryOpen && <div className="admin-modal-backdrop" role="presentation" onMouseDown={() => setIsCatalogSummaryOpen(false)}><section className="admin-catalog-modal" role="dialog" aria-modal="true" aria-labelledby="catalog-modal-title" onMouseDown={(event) => event.stopPropagation()}><button type="button" className="admin-modal-close" onClick={() => setIsCatalogSummaryOpen(false)} aria-label="Fechar resumo"><X size={18} aria-hidden="true" /></button><span>CATÁLOGO CURSOLAB</span><h3 id="catalog-modal-title">Organize os cursos e mantenha o catálogo em movimento.</h3><p>Crie conteúdos, revise informações e acompanhe os cursos publicados em um só lugar.</p><div className="admin-modal-metrics"><div><strong>{managedCourses.length}</strong><small>Cursos publicados</small></div><div><strong>{freeCourses}</strong><small>Gratuitos</small></div><div><strong>{paidCourses}</strong><small>Pagos</small></div></div><button type="button" className="admin-modal-action" onClick={() => { setIsCatalogSummaryOpen(false); setActiveTab('manage-courses'); }}>Gerenciar catálogo</button></section></div>}
             <div className="stats-grid">
               <div className="stat-card">
-                <div className="stat-value">{myCourses.length}</div>
-                <div className="stat-label">Meus Cursos Publicados</div>
+                <span className="stat-icon stat-icon-purple"><BookOpen size={16} aria-hidden="true" /></span>
+                <div><div className="stat-value">{managedCourses.length}</div><div className="stat-label">Cursos cadastrados</div></div>
               </div>
               <div className="stat-card">
-                <div className="stat-value">1.245</div>
-                <div className="stat-label">Total de Alunos</div>
+                <span className="stat-icon stat-icon-blue"><CircleDollarSign size={16} aria-hidden="true" /></span>
+                <div><div className="stat-value">{freeCourses}</div><div className="stat-label">Cursos gratuitos</div></div>
               </div>
               <div className="stat-card">
-                <div className="stat-value">R$ 24.580</div>
-                <div className="stat-label">Faturamento Total</div>
+                <span className="stat-icon stat-icon-green"><TrendingUp size={16} aria-hidden="true" /></span>
+                <div><div className="stat-value">{paidCourses}</div><div className="stat-label">Cursos pagos</div></div>
               </div>
               <div className="stat-card">
-                <div className="stat-value">4.7 ★</div>
-                <div className="stat-label">Avaliação Média</div>
+                <span className="stat-icon stat-icon-orange"><Layers size={16} aria-hidden="true" /></span>
+                <div><div className="stat-value">{courseLevels}</div><div className="stat-label">Níveis de formação</div></div>
               </div>
             </div>
-          </>
+            <div className="admin-overview-grid">
+              <section className="admin-panel">
+                <div className="admin-panel-heading"><div><h3>Ações rápidas</h3><p>Atalhos para administrar a plataforma.</p></div></div>
+                <div className="quick-actions">
+                  <button type="button" onClick={() => setActiveTab('new-course')}><span><Plus size={16} aria-hidden="true" /></span><div><strong>Criar curso</strong><small>Adicione um novo conteúdo</small></div></button>
+                  <button type="button" onClick={() => setActiveTab('manage-courses')}><span><Pencil size={16} aria-hidden="true" /></span><div><strong>Gerenciar catálogo</strong><small>Edite ou exclua cursos</small></div></button>
+                  <button type="button" onClick={() => setActiveTab('analytics')}><span><TrendingUp size={16} aria-hidden="true" /></span><div><strong>Ver análises</strong><small>Acompanhe os indicadores</small></div></button>
+                </div>
+              </section>
+              <section className="admin-panel recent-courses-panel">
+                <div className="admin-panel-heading"><div><h3>Cursos recentes</h3><p>Últimos cursos no catálogo.</p></div><button type="button" onClick={() => setActiveTab('my-courses')}>Ver todos</button></div>
+                {managedCourses.slice(0, 3).map((course) => <div className="recent-course" key={course.id}><span>{course.title.charAt(0)}</span><div><strong>{course.title}</strong><small>{course.level} · {course.price === 0 ? 'Gratuito' : `R$ ${course.price.toFixed(2).replace('.', ',')}`}</small></div></div>)}
+              </section>
+            </div>
+          </div>
         );
       case 'my-courses':
         return (
-          <>
-            <h2>Meus Cursos</h2>
-            <div className="course-grid" style={{gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))'}}>
-              {myCourses.length > 0 ? (
-                myCourses.map(course => (
+          <section className="admin-section">
+            <AdminSectionHeader eyebrow="Catálogo" title="Todos os cursos" description="Visualize os cursos disponíveis na plataforma." action={<button type="button" className="admin-primary-action" onClick={() => setActiveTab('new-course')}><Plus size={16} aria-hidden="true" /> Novo curso</button>} />
+            <div className="course-grid admin-course-grid">
+              {managedCourses.length > 0 ? (
+                managedCourses.map(course => (
                   <CourseCard key={course.id} course={course} navigateTo={navigateTo} />
                 ))
               ) : (
-                <p>Você ainda não criou nenhum curso.</p>
+                <div className="admin-empty-state"><strong>Nenhum curso cadastrado.</strong><span>Crie o primeiro curso para começar o catálogo.</span></div>
               )}
             </div>
-          </>
+          </section>
         );
       case 'new-course':
         return (
-          <>
-            <h2>Criar Novo Curso (Etapa 1/2)</h2>
-            <p>Preencha as informações básicas do seu novo curso.</p>
-            <CreateCourseForm onCourseCreate={handleCreateCourse} />
-          </>
+          <section className="admin-section">
+            <AdminSectionHeader eyebrow="Catálogo" title="Criar novo curso" description="Preencha as informações iniciais. O conteúdo pode ser adicionado na próxima etapa." />
+            <div className="admin-form-panel"><CreateCourseForm onCourseCreate={handleCreateCourse} /></div>
+          </section>
         );
       case 'manage-courses':
         return (
-          <>
-            <h2>Gerenciar Todos os Cursos</h2>
-            <p>Edite o conteúdo ou exclua cursos da plataforma.</p>
-            <ul style={{listStyle: 'none', padding: 0}}>
-              {allCourses.map(course => (
-                <li key={course.id} className="card" style={{
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center', 
-                  padding: '15px'
-                }}>
-                  <div>
+          <section className="admin-section">
+            <AdminSectionHeader eyebrow="Catálogo" title="Gerenciar cursos" description="Edite informações, conteúdo ou remova cursos da plataforma." />
+            <ul className="admin-course-manager">
+              {managedCourses.map(course => (
+                <li key={course.id} className="admin-course-row">
+                  <div className="admin-course-details">
+                    <span>{course.title.charAt(0)}</span>
+                    <div>
                     <strong>{course.title}</strong>
-                    <br/>
-                    <small>{course.instructor}</small>
+                    <small>{course.level} · {course.price === 0 ? 'Gratuito' : `R$ ${course.price.toFixed(2).replace('.', ',')}`}</small>
+                    </div>
                   </div>
-                  <div style={{display: 'flex', gap: '10px'}}>
-                    <button className="btn" style={{backgroundColor: 'var(--primary-light)'}} onClick={() => navigateTo('editCourseMetadata', course.id)}>
+                  <div className="admin-course-actions">
+                    <button className="btn admin-secondary-button" onClick={() => navigateTo('editCourseMetadata', course.id)}>
                       Editar Detalhes
                     </button>
                     <button className="btn" onClick={() => navigateTo('courseEditor', course.id)}>
@@ -112,102 +169,77 @@ const ProfessorDashboardPage = ({
                 </li>
               ))}
             </ul>
-          </>
+          </section>
         );
       case 'analytics':
         return (
-          <>
-            <h2>Análises</h2>
-            <p>Acompanhe o desempenho de vendas e engajamento dos seus cursos.</p>
-            <div className="stats-grid">
+          <section className="admin-section">
+            <AdminSectionHeader eyebrow="Indicadores" title="Análises" description="Acompanhe o desempenho de vendas e o engajamento dos cursos." />
+            <div className="analytics-period"><TrendingUp size={18} aria-hidden="true" /><div><strong>Visão dos últimos 30 dias</strong><span>Indicadores consolidados da plataforma.</span></div></div>
+            <div className="stats-grid admin-analytics-grid analytics-metrics">
               <div className="stat-card">
-                <div className="stat-value">R$ 5.820</div>
-                <div className="stat-label">Faturamento (Últimos 30 dias)</div>
+                <span className="stat-icon stat-icon-green"><TrendingUp size={16} aria-hidden="true" /></span>
+                <div><div className="stat-value">{formattedRevenue30d}</div><div className="stat-label">Faturamento nos últimos 30 dias</div></div>
               </div>
               <div className="stat-card">
-                <div className="stat-value">152</div>
-                <div className="stat-label">Novos Alunos (Últimos 30 dias)</div>
+                <span className="stat-icon stat-icon-blue"><Users size={16} aria-hidden="true" /></span>
+                <div><div className="stat-value">{newStudents30d}</div><div className="stat-label">Novos alunos nos últimos 30 dias</div></div>
               </div>
             </div>
-            <p>(Mais gráficos e relatórios detalhados apareceriam aqui)</p>
-          </>
+            <div className="analytics-detail-grid">
+              <article className="analytics-panel">
+                <div className="analytics-panel-heading"><BookOpen size={18} aria-hidden="true" /><div><h3>Resumo do catálogo</h3><p>Dados atuais dos cursos publicados.</p></div></div>
+                <dl className="analytics-list">
+                  <div><dt>Cursos disponíveis</dt><dd>{managedCourses.length}</dd></div>
+                  <div><dt>Matrículas acumuladas</dt><dd>{totalEnrollments}</dd></div>
+                  <div><dt>Avaliação média</dt><dd>{averageRating.toFixed(1)}</dd></div>
+                </dl>
+              </article>
+              <article className="analytics-panel analytics-next-step">
+                <Layers size={20} aria-hidden="true" />
+                <h3>Relatórios detalhados</h3>
+                <p>A evolução por curso, matrículas e conclusão de aulas aparecerá aqui conforme novos dados forem registrados.</p>
+              </article>
+            </div>
+          </section>
         );
-      case 'questions':
+      case 'support':
         return (
-          <>
-            <h2>Dúvidas Pendentes</h2>
-            {unansweredQuestions.length === 0 ? (
-              <p>Nenhuma dúvida pendente. Ótimo trabalho!</p>
-            ) : (
-              <div className="card" style={{padding: '0'}}>
-                {unansweredQuestions.map(q => {
-                  const courseTitle = allCourses.find(c => c.id === q.courseId)?.title || 'Curso deletado';
-                  const lessonTitle = Object.values(coursesContentDB).flatMap(m => m).flatMap(l => l.lessons).find(l => l.id === q.lessonId)?.title || 'Aula não encontrada';
-                  
-                  return (
-                    <div 
-                      key={q.id} 
-                      className={`question-list-item ${selectedQuestion === q.id ? 'active' : ''}`}
-                    >
-                      <div onClick={() => setSelectedQuestion(selectedQuestion === q.id ? null : q.id)}>
-                        <div className="question-header">
-                          <div className="question-author">{q.author}</div>
-                          <div className="question-date">{q.date}</div>
-                        </div>
-                        <small><strong>Curso:</strong> {courseTitle} | <strong>Aula:</strong> {lessonTitle}</small>
-                        {selectedQuestion !== q.id && <p style={{marginTop: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{q.text}</p>}
-                      </div>
-                      
-                      {selectedQuestion === q.id && (
-                        <div className="question" style={{padding: '15px 0 0 0', border: 'none'}}>
-                          <p style={{marginTop: '10px'}}>{q.text}</p>
-                          <div className="form-group" style={{marginTop: '15px'}}>
-                            <textarea 
-                              rows="3" 
-                              placeholder="Escreva sua resposta..."
-                              value={replyText[q.id] || ''}
-                              onChange={(e) => handleReplyChange(q.id, e.target.value)}
-                            ></textarea>
-                          </div>
-                          <button className="btn btn-accent" onClick={() => handleReplySubmit(q.id)}>
-                            Responder
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
+          <section className="admin-section">
+            <AdminSectionHeader title="Chamados" description="Acompanhe e responda às solicitações enviadas pelos alunos." action={<button type="button" className="admin-secondary-button" onClick={loadSupportTickets} disabled={isLoadingTickets}><RefreshCw size={15} aria-hidden="true" /> Atualizar</button>} />
+            {ticketFeedback && <p className="admin-ticket-feedback">{ticketFeedback}</p>}
+            {isLoadingTickets ? <p className="admin-ticket-empty">Carregando chamados...</p> : supportTickets.length === 0 ? <p className="admin-ticket-empty">Nenhum chamado aberto no momento.</p> : <div className="admin-tickets-list">{supportTickets.map((ticket) => <article key={ticket.id} className="admin-ticket"><div className="admin-ticket-header"><div><span>{ticket.studentName}</span><small>{ticket.courseTitle} · {new Date(ticket.createdAt).toLocaleDateString('pt-BR')}</small></div><strong>{ticket.status === 'answered' ? 'Respondido' : ticket.status === 'closed' ? 'Encerrado' : 'Aberto'}</strong></div><h3>{ticket.subject}</h3><p>{ticket.message}</p>{ticket.adminResponse && <div className="admin-ticket-existing-response"><b>Sua resposta:</b> {ticket.adminResponse}</div>}{ticket.status !== 'closed' && <div className="admin-ticket-reply"><textarea aria-label={`Resposta para ${ticket.studentName}`} placeholder="Escreva uma resposta para o aluno" value={ticketResponses[ticket.id] || ''} onChange={(event) => setTicketResponses((previous) => ({ ...previous, [ticket.id]: event.target.value }))} rows="3" /><div><button type="button" className="admin-primary-action" onClick={() => updateSupportTicket(ticket.id, 'answered')}><Send size={15} aria-hidden="true" /> Responder</button><button type="button" className="admin-secondary-button" onClick={() => updateSupportTicket(ticket.id, 'closed')}>Encerrar</button></div></div>}</article>)}</div>}
+          </section>
         );
       case 'settings':
-        return <h2>Configurações (Página Teste)</h2>;
+        return <section className="admin-section"><AdminSectionHeader eyebrow="Sistema" title="Configurações" description="Resumo das configurações e integrações usadas pela plataforma." /><div className="settings-grid"><article className="settings-card"><span className="settings-icon settings-icon-purple"><MonitorCog size={18} aria-hidden="true" /></span><div><h3>Plataforma</h3><p>Ambiente principal de cursos</p></div><dl><div><dt>Nome</dt><dd>CursoLab</dd></div><div><dt>Catálogo</dt><dd>{managedCourses.length} cursos cadastrados</dd></div></dl></article><article className="settings-card"><span className="settings-icon settings-icon-blue"><ShieldCheck size={18} aria-hidden="true" /></span><div><h3>Acesso e segurança</h3><p>Autenticação de usuários</p></div><dl><div><dt>Login</dt><dd>E-mail e senha</dd></div><div><dt>Papel administrativo</dt><dd>Administrador</dd></div></dl></article><article className="settings-card settings-card-wide"><span className="settings-icon settings-icon-green"><CircleCheck size={18} aria-hidden="true" /></span><div><h3>Serviços conectados</h3><p>Componentes essenciais para o funcionamento da plataforma.</p></div><div className="service-status"><span><i />Banco de dados Supabase</span><span><i />API CursoLab</span><span><i />Autenticação de usuários</span></div></article></div></section>;
       default:
         return <h2>Visão Geral</h2>;
     }
   };
 
   return (
-    <div className="container">
-      <div className="dashboard">
-        <div className="sidebar">
-          <h3>Painel do Instrutor</h3>
+    <section className="admin-page" style={{ backgroundImage: `url(${backofficeBackground})` }}>
+      <div className="container admin-shell">
+        <div className="dashboard">
+          <div className="sidebar">
+          <div className="sidebar-brand"><div><small>CURSOLAB</small><h3>Administração</h3></div></div>
           <ul className="sidebar-menu">
-            <li><a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('overview'); }} className={activeTab === 'overview' ? 'active' : ''}>Visão Geral</a></li>
-            <li><a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('my-courses'); }} className={activeTab === 'my-courses' ? 'active' : ''}>Meus Cursos</a></li>
-            <li><a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('new-course'); }} className={activeTab === 'new-course' ? 'active' : ''}>Criar Novo Curso</a></li>
-            <li><a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('manage-courses'); }} className={activeTab === 'manage-courses' ? 'active' : ''}>Gerenciar Cursos</a></li>
-            <li><a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('analytics'); }} className={activeTab === 'analytics' ? 'active' : ''}>Análises</a></li>
-            <li><a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('questions'); }} className={activeTab === 'questions' ? 'active' : ''}>Dúvidas</a></li>
-            <li><a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('settings'); }} className={activeTab === 'settings' ? 'active' : ''}>Configurações</a></li>
+            <li><button type="button" onClick={() => setActiveTab('overview')} className={activeTab === 'overview' ? 'active' : ''}><span><LayoutDashboard size={16} aria-hidden="true" /></span>Visão geral</button></li>
+            <li><button type="button" onClick={() => setActiveTab('my-courses')} className={activeTab === 'my-courses' ? 'active' : ''}><span><List size={16} aria-hidden="true" /></span>Todos os cursos</button></li>
+            <li><button type="button" onClick={() => setActiveTab('new-course')} className={activeTab === 'new-course' ? 'active' : ''}><span><Plus size={16} aria-hidden="true" /></span>Criar curso</button></li>
+            <li><button type="button" onClick={() => setActiveTab('manage-courses')} className={activeTab === 'manage-courses' ? 'active' : ''}><span><Pencil size={16} aria-hidden="true" /></span>Gerenciar cursos</button></li>
+            <li><button type="button" onClick={() => setActiveTab('analytics')} className={activeTab === 'analytics' ? 'active' : ''}><span><TrendingUp size={16} aria-hidden="true" /></span>Análises</button></li>
+            <li><button type="button" onClick={() => setActiveTab('settings')} className={activeTab === 'settings' ? 'active' : ''}><span><Settings size={16} aria-hidden="true" /></span>Configurações</button></li>
+            <li><button type="button" onClick={() => setActiveTab('support')} className={activeTab === 'support' ? 'active' : ''}><span><MessageSquare size={16} aria-hidden="true" /></span>Chamados</button></li>
           </ul>
         </div>
-        <div className="dashboard-content">
-          {renderTabContent()}
+          <div className="dashboard-content">
+            {renderTabContent()}
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 

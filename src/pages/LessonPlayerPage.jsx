@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Check } from 'lucide-react';
 import QuizComponent from '../components/QuizComponent.jsx';
 import QuestionArea from '../components/QuestionArea.jsx';
 import { calculateProgress } from '../utils/courseUtils.js';
@@ -72,17 +73,28 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
       if (currentLesson.type !== 'video') return;
       
       const newCompleted = new Set(completedLessons);
-      if (newCompleted.has(currentLesson.id)) {
-        newCompleted.delete(currentLesson.id); 
+      const passaAConcluir = !newCompleted.has(currentLesson.id);
+
+      if (passaAConcluir) {
+        newCompleted.add(currentLesson.id);
       } else {
-        newCompleted.add(currentLesson.id); 
+        newCompleted.delete(currentLesson.id);
       }
-      onProgressUpdate(courseId, { completed: newCompleted });
+
+      // changedLesson informa ao App qual aula gravar na API. Sem esse campo, a
+      // atualização é tratada como local (é o caso do desbloqueio de módulos).
+      onProgressUpdate(courseId, {
+        completed: newCompleted,
+        changedLesson: { id: currentLesson.id, completed: passaAConcluir }
+      });
     };
-  
+
     const handleQuizPass = () => {
       const newCompleted = new Set(completedLessons).add(currentLesson.id);
-      onProgressUpdate(courseId, { completed: newCompleted });
+      onProgressUpdate(courseId, {
+        completed: newCompleted,
+        changedLesson: { id: currentLesson.id, completed: true }
+      });
     };
     
     const goToLesson = (moduleIndex, lessonIndex) => {
@@ -230,7 +242,7 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
                           onClick={() => goToLesson(moduleIndex, lessonIndex)}
                         >
                           <span>{lesson.title}</span>
-                          <span>{isCompleted ? '✓' : lesson.duration}</span>
+                          <span>{isCompleted ? <Check size={16} strokeWidth={2.5} aria-label="Concluída" /> : lesson.duration}</span>
                         </div>
                       );
                     })}

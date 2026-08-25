@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp } from 'lucide-react';
 import MiniQuizEditor from '../components/MiniQuizEditor.jsx';
 
 const CourseEditorPage = ({ navigateTo, course, content, onUpdateContent }) => {
@@ -216,7 +217,7 @@ const CourseEditorPage = ({ navigateTo, course, content, onUpdateContent }) => {
     return (
       <div className="container course-editor">
         <button className="btn" onClick={() => navigateTo('dashboard', 'manage-courses')} style={{marginBottom: '20px'}}>
-          &larr; Voltar para Gerenciador
+          <ArrowLeft size={16} aria-hidden="true" /> Voltar para Gerenciador
         </button>
         <div className="card">
           <h2>Editor de Conteúdo: {course.title}</h2>
@@ -234,7 +235,7 @@ const CourseEditorPage = ({ navigateTo, course, content, onUpdateContent }) => {
                       onClick={() => handleMoveModule(moduleIndex, 'up')}
                       disabled={moduleIndex === 0}
                     >
-                      &#8593;
+                      <ArrowUp size={16} aria-hidden="true" />
                     </button>
                     <button 
                       className="btn order-btn" 
@@ -242,7 +243,7 @@ const CourseEditorPage = ({ navigateTo, course, content, onUpdateContent }) => {
                       onClick={() => handleMoveModule(moduleIndex, 'down')}
                       disabled={moduleIndex === modules.length - 1}
                     >
-                      &#8595;
+                      <ArrowDown size={16} aria-hidden="true" />
                     </button>
                     <button className="btn-danger" style={{fontSize: '12px'}} onClick={() => handleDeleteModule(module.id)}>
                       Excluir Módulo
@@ -267,7 +268,7 @@ const CourseEditorPage = ({ navigateTo, course, content, onUpdateContent }) => {
                             onClick={() => handleMoveLesson(module.id, lessonIndex, 'up')}
                             disabled={lessonIndex === 0}
                           >
-                            &#8593;
+                            <ArrowUp size={16} aria-hidden="true" />
                           </button>
                           <button 
                             className="btn order-btn" 
@@ -275,7 +276,7 @@ const CourseEditorPage = ({ navigateTo, course, content, onUpdateContent }) => {
                             onClick={() => handleMoveLesson(module.id, lessonIndex, 'down')}
                             disabled={lessonIndex === module.lessons.length - 1}
                           >
-                            &#8595;
+                            <ArrowDown size={16} aria-hidden="true" />
                           </button>
                            <button 
                             className="btn order-btn" 
