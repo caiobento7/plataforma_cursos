@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+
 const pageContent = {
   about: {
     title: 'Sobre a CursoLab',
@@ -46,4 +48,3 @@ const InfoPage = ({ page, onClose }) => {
 };
 
 export default InfoPage;
-import { X } from 'lucide-react';

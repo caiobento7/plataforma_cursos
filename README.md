@@ -43,6 +43,10 @@ No SQL Editor do Supabase, execute nesta ordem:
 1. `backend/database/schema.sql`
 2. `backend/database/002_learning_content.sql`
 3. `backend/database/seed.sql` (cursos iniciais)
+4. `backend/database/005_demo_course_metrics.sql` (indicadores do backoffice)
+5. `backend/database/006_demo_learning_content.sql` (conteúdo demonstrativo dos cursos)
+6. `backend/database/007_demo_remaining_course_content.sql` (conteúdo dos cursos restantes)
+7. `backend/database/008_support_tickets.sql` (chamados entre alunos e administradores)
 
 Em um banco que já possuía o papel `teacher`, execute também
 `backend/database/003_admin_role.sql` para convertê-lo em `admin`.
