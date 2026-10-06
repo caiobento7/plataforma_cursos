@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'node:url';
+
+// Localmente as variáveis vêm de backend/.env. Na Vercel o arquivo não existe
+// e elas são configuradas no painel do projeto.
+dotenv.config({ path: fileURLToPath(new URL('../.env', import.meta.url)), quiet: true });
 
 const requiredVariables = [
   'SUPABASE_URL',
@@ -9,7 +14,7 @@ const requiredVariables = [
 const missingVariables = requiredVariables.filter((variable) => !process.env[variable]);
 
 if (missingVariables.length > 0) {
-  throw new Error(`Variáveis ausentes no backend/.env: ${missingVariables.join(', ')}`);
+  throw new Error(`Variáveis de ambiente ausentes (backend/.env ou painel da Vercel): ${missingVariables.join(', ')}`);
 }
 
 export const supabaseAdmin = createClient(
