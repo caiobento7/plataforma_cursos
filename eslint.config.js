@@ -27,7 +27,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['backend/**/*.js'],
+    files: ['backend/**/*.js', 'api/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.node,

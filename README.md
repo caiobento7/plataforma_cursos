@@ -75,15 +75,36 @@ npm run server    # API: http://localhost:3001
 npm run dev       # frontend: http://localhost:5173
 ```
 
-As dependências da API são instaladas em `backend/` e já estão registradas no
-seu próprio `package.json`.
+Frontend e API usam o mesmo `package.json` da raiz. Em desenvolvimento, o Vite
+encaminha as chamadas para `/api` ao Express em `localhost:3001`, então o
+frontend usa os mesmos caminhos relativos que em produção.
 
 O endpoint `GET /api/health` confirma que o servidor está ativo. A referência
 completa das rotas está em [`backend/README.md`](backend/README.md).
 
+## Deploy na Vercel
+
+Frontend e API são publicados juntos, num único projeto da Vercel:
+
+- O build do Vite gera o site estático em `dist/`.
+- `api/index.js` exporta o mesmo app Express como função serverless, e o
+  `vercel.json` encaminha todas as rotas `/api/*` para ela.
+
+Passos:
+
+1. Importe o repositório na Vercel (o framework Vite é detectado sozinho).
+2. Em **Settings → Environment Variables**, cadastre `SUPABASE_URL`,
+   `SUPABASE_PUBLISHABLE_KEY` e `SUPABASE_SECRET_KEY`.
+3. No Supabase, em **Authentication → URL Configuration**, adicione a URL de
+   produção (ex.: `https://seu-projeto.vercel.app/**`) às Redirect URLs, para
+   o link de recuperação de senha funcionar.
+
+Cada push na branch `main` gera um novo deploy de produção.
+
 ## Estrutura
 
 ```text
+api/              # função serverless da Vercel (reaproveita o app Express)
 backend/
   database/       # scripts SQL de schema, migração e carga inicial
   src/            # API Express, autenticação e regras de acesso

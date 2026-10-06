@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Vazio por padrão: a API é servida no mesmo domínio (proxy do Vite localmente,
+// função serverless na Vercel). VITE_API_URL permite apontar para outro servidor.
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 let accessToken = sessionStorage.getItem('cursolab_access_token');
 let refreshToken = sessionStorage.getItem('cursolab_refresh_token');
