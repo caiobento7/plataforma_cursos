@@ -1994,3 +1994,20 @@ html, body, #root { max-width: 100%; overflow-x: hidden; }
   .enrollment-success-card { padding: 30px 24px; }
   .enrollment-success-action { width: 100%; }
 }
+
+/* Editor de conteúdo: estados de salvamento e formulários por módulo. */
+.editor-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.editor-unsaved-badge { padding: 4px 10px; border-radius: 999px; background: #fff4e0; color: #9a5b00; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.editor-empty { padding: 18px; border: 1px dashed var(--border); border-radius: 8px; text-align: center; color: var(--text-light); margin-bottom: 20px; }
+.editor-add-lesson { padding: 0 15px 15px; }
+.editor-add-lesson .btn { width: 100%; }
+.editor-lesson.editing { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15); }
+.editor-rename-form { display: flex; gap: 8px; align-items: center; flex: 1; margin-right: 12px; }
+.editor-rename-form input { flex: 1; min-width: 0; }
+.editor-cancel-button { width: 100%; margin-top: 10px; background: var(--text-light) !important; }
+.editor-feedback { margin-bottom: 12px; font-size: 14px; }
+.editor-feedback.error { padding: 10px 12px; border-radius: 6px; background: #fdecea; color: #a61b1b; }
+.course-editor .btn-success:disabled { opacity: 0.55; cursor: not-allowed; }
+.quiz-question-added { align-items: center; gap: 10px; }
+.quiz-question-added small { display: block; color: var(--text-light); }
+.quiz-question-remove { display: inline-grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--white); color: var(--danger); cursor: pointer; flex-shrink: 0; }

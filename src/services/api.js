@@ -74,6 +74,10 @@ export const api = {
   getCourses: () => request('/api/courses'),
   getAdminAnalytics: () => request('/api/admin/analytics'),
   getCourseContent: (courseId) => request(`/api/courses/${courseId}/content`),
+  saveCourseContent: (courseId, modules) => request(`/api/courses/${courseId}/content`, {
+    method: 'PUT',
+    body: JSON.stringify({ modules }),
+  }),
   getCourseProgress: (courseId) => request(`/api/courses/${courseId}/progress`),
   setLessonProgress: (lessonId, completed) => request(`/api/lessons/${lessonId}/progress`, {
     method: 'PUT',
