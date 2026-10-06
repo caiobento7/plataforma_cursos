@@ -740,6 +740,66 @@ app.put('/api/courses/:courseId/content', requireAuth, requireAdmin, async (requ
   return response.json(data);
 });
 
+const materialsBucket = 'course-materials';
+const maxMaterialSize = 20 * 1024 * 1024;
+const allowedMaterialTypes = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/zip',
+  'application/x-zip-compressed',
+  'text/plain',
+  'image/png',
+  'image/jpeg',
+]);
+
+const sanitizeFileName = (fileName) => fileName
+  .normalize('NFD')
+  .replace(/[̀-ͯ]/g, '')
+  .replace(/[^a-zA-Z0-9._-]+/g, '-')
+  .replace(/-+/g, '-')
+  .replace(/^-|-$/g, '')
+  .slice(-80) || 'arquivo';
+
+// Gera uma URL assinada para o navegador enviar o material de apoio direto ao
+// Supabase Storage. O arquivo não passa pela API, que na Vercel tem limite de
+// 4,5 MB por requisição.
+app.post('/api/courses/:courseId/materials/upload-url', requireAuth, requireAdmin, async (request, response) => {
+  const courseId = parseCourseId(request.params.courseId);
+  const { fileName, contentType, size } = request.body;
+
+  if (!courseId || !isNonEmptyString(fileName)) {
+    return response.status(400).json({ error: 'Arquivo inválido.' });
+  }
+  if (!allowedMaterialTypes.has(contentType)) {
+    return response.status(400).json({ error: 'Formato não permitido. Envie PDF, Word, PowerPoint, Excel, ZIP, TXT, PNG ou JPG.' });
+  }
+  if (!Number.isFinite(size) || size <= 0 || size > maxMaterialSize) {
+    return response.status(400).json({ error: 'O arquivo deve ter no máximo 20 MB.' });
+  }
+
+  const { data: course } = await supabaseAdmin.from('courses').select('id').eq('id', courseId).maybeSingle();
+  if (!course) return response.status(404).json({ error: 'Curso não encontrado.' });
+
+  const path = `cursos/${courseId}/${crypto.randomUUID()}-${sanitizeFileName(fileName)}`;
+  const storage = supabaseAdmin.storage.from(materialsBucket);
+  const { data, error } = await storage.createSignedUploadUrl(path);
+
+  if (error) {
+    console.error('Erro ao gerar URL de upload no Supabase:', error.message);
+    return response.status(500).json({ error: 'Não foi possível preparar o envio do arquivo.' });
+  }
+
+  return response.json({
+    signedUrl: data.signedUrl,
+    publicUrl: storage.getPublicUrl(path).data.publicUrl,
+  });
+});
+
 app.post('/api/courses/:courseId/modules', requireAuth, requireAdmin, async (request, response) => {
   const courseId = parseCourseId(request.params.courseId);
   const title = typeof request.body.title === 'string' ? request.body.title.trim() : '';

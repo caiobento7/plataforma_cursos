@@ -2011,3 +2011,10 @@ html, body, #root { max-width: 100%; overflow-x: hidden; }
 .quiz-question-added { align-items: center; gap: 10px; }
 .quiz-question-added small { display: block; color: var(--text-light); }
 .quiz-question-remove { display: inline-grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--white); color: var(--danger); cursor: pointer; flex-shrink: 0; }
+.material-picker { display: flex; gap: 8px; }
+.material-picker input { flex: 1; min-width: 0; }
+.material-picker .btn { white-space: nowrap; }
+.material-current { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 14px; }
+.material-current a { color: var(--accent); word-break: break-all; }
+.material-current button { border: none; background: none; color: var(--danger); cursor: pointer; font-size: 13px; text-decoration: underline; padding: 0; }
+.material-hint { display: block; margin-top: 6px; color: var(--text-light); font-size: 12px; }

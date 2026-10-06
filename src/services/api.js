@@ -99,6 +99,21 @@ export const api = {
     headers: { Authorization: `Bearer ${recoveryToken}` },
     body: JSON.stringify({ password }),
   }),
+  // Pede à API uma URL assinada e envia o arquivo direto ao Supabase Storage.
+  // Devolve o link público do arquivo, que é salvo na aula.
+  uploadCourseMaterial: async (courseId, file) => {
+    const { signedUrl, publicUrl } = await request(`/api/courses/${courseId}/materials/upload-url`, {
+      method: 'POST',
+      body: JSON.stringify({ fileName: file.name, contentType: file.type, size: file.size }),
+    });
+    const response = await fetch(signedUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type, 'x-upsert': 'false' },
+      body: file,
+    });
+    if (!response.ok) throw new Error('Não foi possível enviar o arquivo. Tente novamente.');
+    return publicUrl;
+  },
   createCourse: (course) => request('/api/courses', { method: 'POST', body: JSON.stringify(course) }),
   updateCourse: (courseId, course) => request(`/api/courses/${courseId}`, { method: 'PUT', body: JSON.stringify(course) }),
   deleteCourse: (courseId) => request(`/api/courses/${courseId}`, { method: 'DELETE' }),
