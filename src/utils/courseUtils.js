@@ -22,3 +22,32 @@ export const calculateProgress = (courseId, courseProgress, content) => {
 
   return Math.round((completedVideoLessons / totalVideoLessons) * 100);
 };
+
+// Converte links do YouTube e do Vimeo para o endereço de incorporação
+// (iframe). Para outros links, como um .mp4 do Storage, devolve null e o
+// player usa a tag <video>.
+export const getVideoEmbedUrl = (url) => {
+  if (!url) return null;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+
+  const host = parsed.hostname.replace(/^www\.|^m\./, '');
+  if (host === 'youtu.be') {
+    const id = parsed.pathname.slice(1);
+    return id ? `https://www.youtube.com/embed/${id}` : null;
+  }
+  if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+    const [, section, pathId] = parsed.pathname.split('/');
+    const id = parsed.searchParams.get('v') || (['embed', 'shorts', 'live'].includes(section) ? pathId : null);
+    return id ? `https://www.youtube.com/embed/${id}` : null;
+  }
+  if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+    const id = parsed.pathname.split('/').find((part) => /^\d+$/.test(part));
+    return id ? `https://player.vimeo.com/video/${id}` : null;
+  }
+  return null;
+};

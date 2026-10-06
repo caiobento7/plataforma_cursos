@@ -2,7 +2,7 @@
 --
 -- Cria o bucket do Supabase Storage que guarda os materiais de apoio enviados
 -- pelo editor de conteúdo. O envio é feito pelo navegador com uma URL
--- assinada gerada pela API (POST /api/courses/:courseId/materials/upload-url),
+-- assinada gerada pela API (POST /api/courses/:courseId/uploads),
 -- então nenhuma política de escrita pública é necessária.
 --
 -- O bucket é público para leitura: o link salvo na aula abre o arquivo

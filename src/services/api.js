@@ -70,6 +70,23 @@ const request = async (path, options = {}, retriedAfterRefresh = false) => {
   return body;
 };
 
+// O fetch não informa o progresso do envio; o XMLHttpRequest sim, o que
+// permite mostrar a porcentagem durante o upload de vídeos.
+const uploadWithProgress = (url, file, onProgress) => new Promise((resolve, reject) => {
+  const xhr = new XMLHttpRequest();
+  xhr.open('PUT', url);
+  xhr.setRequestHeader('Content-Type', file.type);
+  xhr.setRequestHeader('x-upsert', 'false');
+  xhr.upload.onprogress = (event) => {
+    if (event.lengthComputable && onProgress) onProgress(Math.round((event.loaded / event.total) * 100));
+  };
+  xhr.onload = () => (xhr.status >= 200 && xhr.status < 300
+    ? resolve()
+    : reject(new Error('Não foi possível enviar o arquivo. Tente novamente.')));
+  xhr.onerror = () => reject(new Error('Falha de conexão durante o envio. Tente novamente.'));
+  xhr.send(file);
+});
+
 export const api = {
   getCourses: () => request('/api/courses'),
   getAdminAnalytics: () => request('/api/admin/analytics'),
@@ -100,18 +117,13 @@ export const api = {
     body: JSON.stringify({ password }),
   }),
   // Pede à API uma URL assinada e envia o arquivo direto ao Supabase Storage.
-  // Devolve o link público do arquivo, que é salvo na aula.
-  uploadCourseMaterial: async (courseId, file) => {
-    const { signedUrl, publicUrl } = await request(`/api/courses/${courseId}/materials/upload-url`, {
+  // kind: 'video' ou 'material'. Devolve o link público, que é salvo na aula.
+  uploadCourseFile: async (courseId, kind, file, onProgress) => {
+    const { signedUrl, publicUrl } = await request(`/api/courses/${courseId}/uploads`, {
       method: 'POST',
-      body: JSON.stringify({ fileName: file.name, contentType: file.type, size: file.size }),
+      body: JSON.stringify({ kind, fileName: file.name, contentType: file.type, size: file.size }),
     });
-    const response = await fetch(signedUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': file.type, 'x-upsert': 'false' },
-      body: file,
-    });
-    if (!response.ok) throw new Error('Não foi possível enviar o arquivo. Tente novamente.');
+    await uploadWithProgress(signedUrl, file, onProgress);
     return publicUrl;
   },
   createCourse: (course) => request('/api/courses', { method: 'POST', body: JSON.stringify(course) }),

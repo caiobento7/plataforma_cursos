@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Check } from 'lucide-react';
 import QuizComponent from '../components/QuizComponent.jsx';
 import QuestionArea from '../components/QuestionArea.jsx';
-import { calculateProgress } from '../utils/courseUtils.js';
+import { calculateProgress, getVideoEmbedUrl } from '../utils/courseUtils.js';
 
 const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressUpdate, questions, onAskQuestion }) => {
     const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
@@ -138,17 +138,26 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
   
     const renderPlayerContent = () => {
       switch(currentLesson.type) {
-        case 'video':
+        case 'video': {
+          const embedUrl = getVideoEmbedUrl(currentLesson.videoUrl);
           return (
             <>
-              <video 
-                key={currentLesson.id} 
-                className="video-player" 
-                controls 
-                src={currentLesson.videoUrl || 'https://youtu.be/6wcnqU9nAms?si=xLStGSVCYn5MyThl'} 
-              >
-                Seu navegador não suporta a tag de vídeo.
-              </video>
+              {embedUrl ? (
+                <iframe
+                  key={currentLesson.id}
+                  className="video-player video-embed"
+                  src={embedUrl}
+                  title={currentLesson.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : currentLesson.videoUrl ? (
+                <video key={currentLesson.id} className="video-player" controls src={currentLesson.videoUrl}>
+                  Seu navegador não suporta a tag de vídeo.
+                </video>
+              ) : (
+                <div className="video-player video-unavailable">O vídeo desta aula ainda não foi publicado.</div>
+              )}
               <h2>{currentLesson.title}</h2>
               <p>Nesta aula, vamos explorar o tópico: {currentLesson.title}.</p>
               {currentLesson.documentUrl && (
@@ -164,6 +173,7 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
               )}
             </>
           );
+        }
         case 'quiz':
           return (
             <QuizComponent 

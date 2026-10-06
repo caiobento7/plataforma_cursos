@@ -740,53 +740,70 @@ app.put('/api/courses/:courseId/content', requireAuth, requireAdmin, async (requ
   return response.json(data);
 });
 
-const materialsBucket = 'course-materials';
-const maxMaterialSize = 20 * 1024 * 1024;
-const allowedMaterialTypes = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/zip',
-  'application/x-zip-compressed',
-  'text/plain',
-  'image/png',
-  'image/jpeg',
-]);
+// Tipos de arquivo que o editor de conteúdo pode enviar ao Supabase Storage.
+// Os limites repetem os configurados nos buckets (010 e 011), para a API
+// recusar o envio antes de gerar a URL assinada.
+const uploadKinds = {
+  material: {
+    bucket: 'course-materials',
+    maxSize: 20 * 1024 * 1024,
+    types: new Set([
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/zip',
+      'application/x-zip-compressed',
+      'text/plain',
+      'image/png',
+      'image/jpeg',
+    ]),
+    typeError: 'Formato não permitido. Envie PDF, Word, PowerPoint, Excel, ZIP, TXT, PNG ou JPG.',
+    sizeError: 'O material deve ter no máximo 20 MB.',
+  },
+  video: {
+    bucket: 'course-videos',
+    maxSize: 50 * 1024 * 1024,
+    types: new Set(['video/mp4', 'video/webm']),
+    typeError: 'Formato não permitido. Envie um vídeo MP4 ou WebM.',
+    sizeError: 'O vídeo deve ter no máximo 50 MB. Para vídeos maiores, use um link do YouTube.',
+  },
+};
 
 const sanitizeFileName = (fileName) => fileName
   .normalize('NFD')
-  .replace(/[̀-ͯ]/g, '')
+  .replace(/[\u0300-\u036f]/g, '')
   .replace(/[^a-zA-Z0-9._-]+/g, '-')
   .replace(/-+/g, '-')
   .replace(/^-|-$/g, '')
   .slice(-80) || 'arquivo';
 
-// Gera uma URL assinada para o navegador enviar o material de apoio direto ao
-// Supabase Storage. O arquivo não passa pela API, que na Vercel tem limite de
-// 4,5 MB por requisição.
-app.post('/api/courses/:courseId/materials/upload-url', requireAuth, requireAdmin, async (request, response) => {
+// Gera uma URL assinada para o navegador enviar o arquivo direto ao Supabase
+// Storage. O arquivo não passa pela API, que na Vercel tem limite de 4,5 MB
+// por requisição.
+app.post('/api/courses/:courseId/uploads', requireAuth, requireAdmin, async (request, response) => {
   const courseId = parseCourseId(request.params.courseId);
-  const { fileName, contentType, size } = request.body;
+  const { kind, fileName, contentType, size } = request.body;
+  const config = uploadKinds[kind];
 
-  if (!courseId || !isNonEmptyString(fileName)) {
+  if (!courseId || !config || !isNonEmptyString(fileName)) {
     return response.status(400).json({ error: 'Arquivo inválido.' });
   }
-  if (!allowedMaterialTypes.has(contentType)) {
-    return response.status(400).json({ error: 'Formato não permitido. Envie PDF, Word, PowerPoint, Excel, ZIP, TXT, PNG ou JPG.' });
+  if (!config.types.has(contentType)) {
+    return response.status(400).json({ error: config.typeError });
   }
-  if (!Number.isFinite(size) || size <= 0 || size > maxMaterialSize) {
-    return response.status(400).json({ error: 'O arquivo deve ter no máximo 20 MB.' });
+  if (!Number.isFinite(size) || size <= 0 || size > config.maxSize) {
+    return response.status(400).json({ error: config.sizeError });
   }
 
   const { data: course } = await supabaseAdmin.from('courses').select('id').eq('id', courseId).maybeSingle();
   if (!course) return response.status(404).json({ error: 'Curso não encontrado.' });
 
   const path = `cursos/${courseId}/${crypto.randomUUID()}-${sanitizeFileName(fileName)}`;
-  const storage = supabaseAdmin.storage.from(materialsBucket);
+  const storage = supabaseAdmin.storage.from(config.bucket);
   const { data, error } = await storage.createSignedUploadUrl(path);
 
   if (error) {

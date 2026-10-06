@@ -2018,3 +2018,7 @@ html, body, #root { max-width: 100%; overflow-x: hidden; }
 .material-current a { color: var(--accent); word-break: break-all; }
 .material-current button { border: none; background: none; color: var(--danger); cursor: pointer; font-size: 13px; text-decoration: underline; padding: 0; }
 .material-hint { display: block; margin-top: 6px; color: var(--text-light); font-size: 12px; }
+.upload-progress { height: 6px; margin-top: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.upload-progress i { display: block; height: 100%; background: var(--accent); transition: width 0.2s ease; }
+.video-player.video-embed { width: 100%; height: auto; aspect-ratio: 16 / 9; border: 0; }
+.video-player.video-unavailable { padding: 20px; text-align: center; font-size: 15px; opacity: 0.85; }

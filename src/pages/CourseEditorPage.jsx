@@ -1,19 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Check, FileUp, Pencil, Plus, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Pencil, Plus, X } from 'lucide-react';
+import FileUrlField from '../components/FileUrlField.jsx';
 import MiniQuizEditor from '../components/MiniQuizEditor.jsx';
-import { api } from '../services/api.js';
-
-const maxMaterialSize = 20 * 1024 * 1024;
-const materialAccept = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.txt,.png,.jpg,.jpeg';
-
-const materialName = (url) => {
-  try {
-    // Arquivos enviados ficam como <uuid>-<nome>; mostra só o nome original.
-    return decodeURIComponent(new URL(url).pathname.split('/').pop()).replace(/^[0-9a-f-]{36}-/, '');
-  } catch {
-    return url;
-  }
-};
 
 const emptyLessonForm = { title: '', duration: '10 min', type: 'video', videoUrl: '', documentUrl: '' };
 
@@ -32,9 +20,8 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
   const [editingLesson, setEditingLesson] = useState(null); // dados originais da aula em edição
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [isUploadingMaterial, setIsUploadingMaterial] = useState(false);
-  const [materialError, setMaterialError] = useState('');
-  const materialInputRef = useRef(null);
+  const [activeUploads, setActiveUploads] = useState(0);
+  const isUploading = activeUploads > 0;
 
   // Sincroniza com o conteúdo vindo da API (carregamento inicial e após salvar).
   useEffect(() => {
@@ -50,7 +37,6 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
   };
 
   const closeLessonForm = () => {
-    setMaterialError('');
     setLessonForm(emptyLessonForm);
     setFormModuleId(null);
     setEditingLesson(null);
@@ -92,26 +78,8 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
     setLessonForm((previous) => ({ ...previous, [field]: value }));
   };
 
-  const handleMaterialFileChange = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-
-    setMaterialError('');
-    if (file.size > maxMaterialSize) {
-      setMaterialError('O arquivo deve ter no máximo 20 MB.');
-      return;
-    }
-
-    setIsUploadingMaterial(true);
-    try {
-      const publicUrl = await api.uploadCourseMaterial(course.id, file);
-      handleLessonFormChange('documentUrl', publicUrl);
-    } catch (error) {
-      setMaterialError(error.message);
-    } finally {
-      setIsUploadingMaterial(false);
-    }
+  const handleUploadingChange = (uploading) => {
+    setActiveUploads((previous) => previous + (uploading ? 1 : -1));
   };
 
   const saveLesson = (moduleId, lessonData) => {
@@ -269,29 +237,31 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
 
       {lessonForm.type === 'video' ? (
         <>
-          <div className="form-group">
-            <label>URL do Vídeo (arquivo .mp4)</label>
-            <input type="url" placeholder="https://.../meu-video.mp4" value={lessonForm.videoUrl} onChange={(event) => handleLessonFormChange('videoUrl', event.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>Material de Apoio - Opcional</label>
-            <div className="material-picker">
-              <input type="url" placeholder="Cole um link ou escolha um arquivo" value={lessonForm.documentUrl} onChange={(event) => handleLessonFormChange('documentUrl', event.target.value)} disabled={isUploadingMaterial} />
-              <button type="button" className="btn" onClick={() => materialInputRef.current?.click()} disabled={isUploadingMaterial}>
-                <FileUp size={16} aria-hidden="true" /> {isUploadingMaterial ? 'Enviando...' : 'Escolher arquivo'}
-              </button>
-              <input ref={materialInputRef} type="file" accept={materialAccept} onChange={handleMaterialFileChange} hidden />
-            </div>
-            {lessonForm.documentUrl && !isUploadingMaterial && (
-              <p className="material-current">
-                Material: <a href={lessonForm.documentUrl} target="_blank" rel="noopener noreferrer">{materialName(lessonForm.documentUrl)}</a>
-                <button type="button" onClick={() => handleLessonFormChange('documentUrl', '')}>Remover</button>
-              </p>
-            )}
-            {materialError && <p className="editor-feedback error">{materialError}</p>}
-            <small className="material-hint">PDF, Word, PowerPoint, Excel, ZIP, TXT, PNG ou JPG, até 20 MB.</small>
-          </div>
-          <button type="button" className={editingLesson ? 'btn btn-success' : 'btn btn-accent'} style={{ width: '100%' }} onClick={() => handleSaveVideoLesson(module.id)} disabled={isUploadingMaterial}>
+          <FileUrlField
+            label="Vídeo da Aula"
+            kind="video"
+            courseId={course.id}
+            value={lessonForm.videoUrl}
+            onChange={(value) => handleLessonFormChange('videoUrl', value)}
+            accept="video/mp4,video/webm"
+            maxSizeMb={50}
+            placeholder="Link do YouTube ou de um arquivo .mp4"
+            hint="Envie um MP4 ou WebM de até 50 MB, ou cole um link do YouTube ou Vimeo."
+            onUploadingChange={handleUploadingChange}
+          />
+          <FileUrlField
+            label="Material de Apoio - Opcional"
+            kind="material"
+            courseId={course.id}
+            value={lessonForm.documentUrl}
+            onChange={(value) => handleLessonFormChange('documentUrl', value)}
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.txt,.png,.jpg,.jpeg"
+            maxSizeMb={20}
+            placeholder="Cole um link ou escolha um arquivo"
+            hint="PDF, Word, PowerPoint, Excel, ZIP, TXT, PNG ou JPG, até 20 MB."
+            onUploadingChange={handleUploadingChange}
+          />
+          <button type="button" className={editingLesson ? 'btn btn-success' : 'btn btn-accent'} style={{ width: '100%' }} onClick={() => handleSaveVideoLesson(module.id)} disabled={isUploading}>
             {editingLesson ? 'Aplicar Edição' : 'Adicionar Aula'}
           </button>
         </>
@@ -304,7 +274,7 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
         />
       )}
 
-      <button type="button" className="btn editor-cancel-button" onClick={closeLessonForm}>
+      <button type="button" className="btn editor-cancel-button" onClick={closeLessonForm} disabled={isUploading}>
         Cancelar
       </button>
     </div>
@@ -417,7 +387,7 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
         <hr style={{ margin: '20px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
 
         {saveError && <p className="editor-feedback error" role="alert">{saveError}</p>}
-        <button className="btn btn-success" style={{ width: '100%', fontSize: '18px' }} onClick={handleSaveContent} disabled={isSaving || !hasUnsavedChanges}>
+        <button className="btn btn-success" style={{ width: '100%', fontSize: '18px' }} onClick={handleSaveContent} disabled={isSaving || isUploading || !hasUnsavedChanges}>
           {isSaving ? 'Salvando...' : hasUnsavedChanges ? 'Salvar Alterações do Curso' : 'Nenhuma alteração para salvar'}
         </button>
       </div>
