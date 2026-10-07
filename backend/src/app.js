@@ -1232,12 +1232,13 @@ const getCoursesProgress = async (studentId, courseIds) => {
     totalLessons: 0,
     totalMinutes: 0,
     lastCompletedAt: null,
+    nextLesson: null,
   }]));
   if (courseIds.length === 0) return summary;
 
   const { data: modules, error: modulesError } = await supabaseAdmin
     .from('course_modules')
-    .select('id, course_id')
+    .select('id, course_id, title, sort_order')
     .in('course_id', courseIds);
   if (modulesError) return null;
   if (modules.length === 0) return summary;
@@ -1245,7 +1246,7 @@ const getCoursesProgress = async (studentId, courseIds) => {
   const courseByModule = new Map(modules.map((module) => [module.id, module.course_id]));
   const { data: lessons, error: lessonsError } = await supabaseAdmin
     .from('lessons')
-    .select('id, module_id, duration')
+    .select('id, module_id, title, duration, sort_order')
     .in('module_id', modules.map((module) => module.id));
   if (lessonsError) return null;
   if (lessons.length === 0) return summary;
@@ -1267,11 +1268,31 @@ const getCoursesProgress = async (studentId, courseIds) => {
     .in('lesson_id', lessons.map((lesson) => lesson.id));
   if (progressError) return null;
 
+  const completedIds = new Set();
   progress.forEach((item) => {
+    completedIds.add(item.lesson_id);
     const course = summary.get(courseByLesson.get(item.lesson_id));
     course.completedLessons += 1;
     if (item.completed_at && (!course.lastCompletedAt || item.completed_at > course.lastCompletedAt)) {
       course.lastCompletedAt = item.completed_at;
+    }
+  });
+
+  // Próxima aula: a primeira não concluída, na ordem dos módulos e das aulas.
+  const bySortOrder = (a, b) => a.sort_order - b.sort_order;
+  courseIds.forEach((courseId) => {
+    const courseModules = modules.filter((module) => module.course_id === courseId).sort(bySortOrder);
+    for (const [moduleIndex, module] of courseModules.entries()) {
+      const moduleLessons = lessons.filter((lesson) => lesson.module_id === module.id).sort(bySortOrder);
+      const lessonIndex = moduleLessons.findIndex((lesson) => !completedIds.has(lesson.id));
+      if (lessonIndex >= 0) {
+        summary.get(courseId).nextLesson = {
+          title: moduleLessons[lessonIndex].title,
+          moduleNumber: moduleIndex + 1,
+          lessonNumber: lessonIndex + 1,
+        };
+        return;
+      }
     }
   });
 
@@ -1287,6 +1308,7 @@ const toProgressResponse = (summary) => {
     totalLessons: summary.totalLessons,
     percent,
     lastCompletedAt: summary.lastCompletedAt,
+    nextLesson: summary.nextLesson,
     certificateAvailable: percent >= certificateMinProgress,
   };
 };
