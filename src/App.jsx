@@ -64,7 +64,11 @@ const App = () => {
   const loadEnrollments = useCallback(async () => {
     try {
       const enrollments = await api.getEnrollments();
-      setPurchasedCourses(enrollments.map((enrollment) => toCourse(enrollment.course)));
+      setPurchasedCourses(enrollments.map((enrollment) => ({
+        ...toCourse(enrollment.course),
+        enrolledAt: enrollment.enrolled_at,
+        progress: enrollment.progress,
+      })));
     } catch (error) {
       console.error('Não foi possível carregar as matrículas:', error.message);
     }
@@ -89,10 +93,7 @@ const App = () => {
       const { completedLessonIds } = await api.getCourseProgress(courseId);
       setCourseProgress((previous) => ({
         ...previous,
-        [courseId]: {
-          completed: new Set(completedLessonIds),
-          unlocked: previous[courseId]?.unlocked || new Set([0]),
-        },
+        [courseId]: { completed: new Set(completedLessonIds) },
       }));
     } catch {
       // Visitante ou aluno sem matrícula no curso: a API responde 403 e a
@@ -144,6 +145,8 @@ const App = () => {
       setCurrentPageData(typeof data === 'string' ? data : 'login');
     }
     if (page === 'dashboard') setCurrentPageData(data);
+    // Atualiza o progresso dos cursos ao voltar para o painel do aluno.
+    if (page === 'studentDashboard' && currentUser?.role === 'student') loadEnrollments();
     window.scrollTo(0, 0);
   };
 
@@ -265,13 +268,8 @@ const App = () => {
     setCoursesContentDB((previous) => ({ ...previous, [courseId]: content }));
   };
 
-  // useCallback para manter a referência estável: o LessonPlayerPage usa esta
-  // função como dependência de um efeito, que sem isso rodaria a cada render.
   const handleProgressUpdate = useCallback((courseId, data) => {
-    setCourseProgress((previous) => {
-      const current = previous[courseId] || { completed: new Set(), unlocked: new Set([0]) };
-      return { ...previous, [courseId]: { completed: data.completed || current.completed, unlocked: data.unlocked || current.unlocked } };
-    });
+    setCourseProgress((previous) => ({ ...previous, [courseId]: { completed: data.completed } }));
 
     // Apenas a conclusão de aula é gravada. Os módulos liberados são derivados
     // do conjunto de aulas concluídas, então não precisam ir ao banco.
@@ -330,7 +328,7 @@ const App = () => {
         ? <EnrollmentSuccessPage courses={recentlyPurchasedCourses} navigateTo={navigateTo} />
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} />;
       case 'studentDashboard': return currentUser?.role === 'student'
-        ? <StudentDashboardPage navigateTo={navigateTo} purchasedCourses={purchasedCourses} courseProgress={courseProgress} coursesContentDB={coursesContentDB} />
+        ? <StudentDashboardPage navigateTo={navigateTo} purchasedCourses={purchasedCourses} currentUser={currentUser} onProfileUpdated={setCurrentUser} />
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} />;
       default: return <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} />;
     }

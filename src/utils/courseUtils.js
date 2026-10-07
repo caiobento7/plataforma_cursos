@@ -1,26 +1,12 @@
+// Percentual de aulas concluídas (vídeos e quizzes), o mesmo cálculo feito
+// pela API em GET /api/enrollments/me.
 export const calculateProgress = (courseId, courseProgress, content) => {
-  const progressData = courseProgress[courseId];
-  const courseContent = content || [];
+  const completed = courseProgress[courseId]?.completed;
+  const lessons = (content || []).flatMap((module) => module.lessons);
+  if (!completed || lessons.length === 0) return 0;
 
-  const totalVideoLessons = courseContent.reduce(
-    (total, module) => total + module.lessons.filter(l => l.type === 'video').length,
-    0
-  );
-
-  if (!progressData || totalVideoLessons === 0) {
-    return 0;
-  }
-
-  const completedVideoLessons = Array.from(progressData.completed).filter(lessonId => {
-    for (const module of courseContent) {
-      if (module.lessons.find(l => l.id === lessonId && l.type === 'video')) {
-        return true;
-      }
-    }
-    return false;
-  }).length;
-
-  return Math.round((completedVideoLessons / totalVideoLessons) * 100);
+  const completedCount = lessons.filter((lesson) => completed.has(lesson.id)).length;
+  return Math.round((completedCount / lessons.length) * 100);
 };
 
 // Converte links do YouTube e do Vimeo para o endereço de incorporação

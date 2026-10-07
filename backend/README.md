@@ -53,7 +53,10 @@ Teste a saúde do serviço em `http://localhost:3001/api/health`.
 | `POST` | `/api/lessons/:lessonId/questions` | Envia uma dúvida sobre uma aula. |
 | `PATCH` | `/api/questions/:questionId/answer` | Responde uma dúvida; exclusivo do administrador. |
 | `POST` | `/api/enrollments` | Cria uma matrícula para o aluno autenticado. |
-| `GET` | `/api/enrollments/me` | Lista as matrículas do aluno autenticado. |
+| `GET` | `/api/enrollments/me` | Lista as matrículas do aluno com o progresso de cada curso. |
+| `GET` | `/api/enrollments/:courseId/certificate` | Dados do certificado; liberado a partir de 60% das aulas concluídas. |
+| `PATCH` | `/api/students/me` | Atualiza o nome do usuário autenticado. |
+| `POST` | `/api/auth/change-password` | Troca a senha, confirmando a senha atual. |
 | `PUT` | `/api/courses/:courseId/content` | Salva módulos, aulas e quizzes do curso numa transação; exclusivo do administrador. |
 | `POST` | `/api/courses/:courseId/uploads` | Gera URL assinada para enviar vídeo ou material ao Storage; exclusivo do administrador. |
 | `POST` | `/api/support-tickets` | Aluno abre um chamado (geral ou de um curso em que está matriculado). |
