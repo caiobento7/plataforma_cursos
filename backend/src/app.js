@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import cors from 'cors';
 import express from 'express';
 import { requireAuth } from './middleware/requireAuth.js';
@@ -299,6 +300,62 @@ app.get('/api/students/me', requireAuth, async (request, response) => {
   }
 
   return response.json({ ...data, email: request.user.email });
+});
+
+app.patch('/api/students/me', requireAuth, async (request, response) => {
+  const fullName = typeof request.body.fullName === 'string' ? request.body.fullName.trim().replace(/\s+/g, ' ') : '';
+
+  if (fullName.length < 3 || fullName.length > 100) {
+    return response.status(400).json({ error: 'O nome deve ter entre 3 e 100 caracteres.' });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .update({ full_name: fullName })
+    .eq('id', request.user.id)
+    .select('id, full_name, role, created_at')
+    .single();
+
+  if (error) {
+    console.error('Erro ao atualizar perfil no Supabase:', error.message);
+    return response.status(500).json({ error: 'Não foi possível atualizar o perfil.' });
+  }
+
+  return response.json({ ...data, email: request.user.email });
+});
+
+// Troca de senha com a sessão ativa: confirma a senha atual antes de gravar a
+// nova, para que um token esquecido aberto não baste para trocar a senha.
+app.post('/api/auth/change-password', requireAuth, async (request, response) => {
+  const { currentPassword, newPassword } = request.body;
+
+  if (!isNonEmptyString(currentPassword)) {
+    return response.status(400).json({ error: 'Informe a senha atual.' });
+  }
+  if (!isNonEmptyString(newPassword) || newPassword.length < 6) {
+    return response.status(400).json({ error: 'A nova senha deve ter pelo menos 6 caracteres.' });
+  }
+  if (newPassword === currentPassword) {
+    return response.status(400).json({ error: 'A nova senha deve ser diferente da atual.' });
+  }
+
+  const { error: signInError } = await supabaseAuth.auth.signInWithPassword({
+    email: request.user.email,
+    password: currentPassword,
+  });
+
+  if (signInError) {
+    return response.status(400).json({ error: 'A senha atual está incorreta.' });
+  }
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(request.user.id, { password: newPassword });
+
+  if (error) {
+    console.error('Erro ao trocar senha no Supabase:', error.message);
+    return response.status(500).json({ error: 'Não foi possível atualizar a senha.' });
+  }
+
+  return response.json({ message: 'Senha atualizada com sucesso.' });
 });
 
 app.get('/api/courses', async (_request, response) => {
@@ -1154,6 +1211,86 @@ app.post('/api/enrollments', requireAuth, async (request, response) => {
   return response.status(201).json(data);
 });
 
+// Percentual mínimo de aulas concluídas para emitir o certificado (RF16).
+const certificateMinProgress = 60;
+
+// Converte durações livres do editor ("15 min", "1h 30min", "1h", "20") em minutos.
+const parseDurationMinutes = (duration) => {
+  const text = String(duration || '').toLowerCase();
+  const hours = Number(text.match(/(\d+)\s*h/)?.[1] || 0);
+  const minutes = Number(text.match(/(\d+)\s*m/)?.[1] || 0);
+  if (hours || minutes) return hours * 60 + minutes;
+  return Number(text.match(/\d+/)?.[0] || 0);
+};
+
+// Calcula o progresso do aluno em cada curso: aulas concluídas sobre o total de
+// aulas (vídeos e quizzes). Devolve um Map courseId -> resumo, ou null se a
+// consulta falhar.
+const getCoursesProgress = async (studentId, courseIds) => {
+  const summary = new Map(courseIds.map((courseId) => [courseId, {
+    completedLessons: 0,
+    totalLessons: 0,
+    totalMinutes: 0,
+    lastCompletedAt: null,
+  }]));
+  if (courseIds.length === 0) return summary;
+
+  const { data: modules, error: modulesError } = await supabaseAdmin
+    .from('course_modules')
+    .select('id, course_id')
+    .in('course_id', courseIds);
+  if (modulesError) return null;
+  if (modules.length === 0) return summary;
+
+  const courseByModule = new Map(modules.map((module) => [module.id, module.course_id]));
+  const { data: lessons, error: lessonsError } = await supabaseAdmin
+    .from('lessons')
+    .select('id, module_id, duration')
+    .in('module_id', modules.map((module) => module.id));
+  if (lessonsError) return null;
+  if (lessons.length === 0) return summary;
+
+  const courseByLesson = new Map();
+  lessons.forEach((lesson) => {
+    const courseId = courseByModule.get(lesson.module_id);
+    courseByLesson.set(lesson.id, courseId);
+    const course = summary.get(courseId);
+    course.totalLessons += 1;
+    course.totalMinutes += parseDurationMinutes(lesson.duration);
+  });
+
+  const { data: progress, error: progressError } = await supabaseAdmin
+    .from('lesson_progress')
+    .select('lesson_id, completed_at')
+    .eq('student_id', studentId)
+    .eq('completed', true)
+    .in('lesson_id', lessons.map((lesson) => lesson.id));
+  if (progressError) return null;
+
+  progress.forEach((item) => {
+    const course = summary.get(courseByLesson.get(item.lesson_id));
+    course.completedLessons += 1;
+    if (item.completed_at && (!course.lastCompletedAt || item.completed_at > course.lastCompletedAt)) {
+      course.lastCompletedAt = item.completed_at;
+    }
+  });
+
+  return summary;
+};
+
+const toProgressResponse = (summary) => {
+  const percent = summary.totalLessons > 0
+    ? Math.round((summary.completedLessons / summary.totalLessons) * 100)
+    : 0;
+  return {
+    completedLessons: summary.completedLessons,
+    totalLessons: summary.totalLessons,
+    percent,
+    lastCompletedAt: summary.lastCompletedAt,
+    certificateAvailable: percent >= certificateMinProgress,
+  };
+};
+
 app.get('/api/enrollments/me', requireAuth, async (request, response) => {
   const { data, error } = await supabaseAdmin
     .from('enrollments')
@@ -1169,7 +1306,61 @@ app.get('/api/enrollments/me', requireAuth, async (request, response) => {
     return response.status(500).json({ error: 'Não foi possível carregar as matrículas.' });
   }
 
-  return response.json(data);
+  const enrollments = data.filter((enrollment) => enrollment.course);
+  const progress = await getCoursesProgress(request.user.id, enrollments.map((enrollment) => enrollment.course.id));
+  if (!progress) return response.status(500).json({ error: 'Não foi possível calcular o progresso dos cursos.' });
+
+  return response.json(enrollments.map((enrollment) => ({
+    ...enrollment,
+    progress: toProgressResponse(progress.get(enrollment.course.id)),
+  })));
+});
+
+// Dados do certificado de conclusão. A regra de liberação é verificada aqui,
+// no servidor; o navegador apenas monta o PDF com os dados devolvidos.
+app.get('/api/enrollments/:courseId/certificate', requireAuth, async (request, response) => {
+  const courseId = parseCourseId(request.params.courseId);
+  if (!courseId) return response.status(400).json({ error: 'Curso inválido.' });
+
+  const { data: enrollment } = await supabaseAdmin
+    .from('enrollments')
+    .select('id, enrolled_at, course:courses (id, title)')
+    .eq('student_id', request.user.id)
+    .eq('course_id', courseId)
+    .maybeSingle();
+
+  if (!enrollment?.course) return response.status(404).json({ error: 'Você não está matriculado neste curso.' });
+
+  const [progressMap, profileResult] = await Promise.all([
+    getCoursesProgress(request.user.id, [courseId]),
+    supabaseAdmin.from('profiles').select('full_name').eq('id', request.user.id).single(),
+  ]);
+  if (!progressMap || profileResult.error) {
+    return response.status(500).json({ error: 'Não foi possível gerar o certificado.' });
+  }
+
+  const summary = progressMap.get(courseId);
+  const progress = toProgressResponse(summary);
+  if (!progress.certificateAvailable) {
+    return response.status(403).json({
+      error: `O certificado é liberado com ${certificateMinProgress}% do curso concluído. Seu progresso atual é ${progress.percent}%.`,
+    });
+  }
+
+  const code = createHash('sha256')
+    .update(`${enrollment.id}:${request.user.id}:${courseId}`)
+    .digest('hex')
+    .slice(0, 10)
+    .toUpperCase();
+
+  return response.json({
+    studentName: profileResult.data.full_name,
+    courseTitle: enrollment.course.title,
+    workloadHours: Math.max(1, Math.ceil(summary.totalMinutes / 60)),
+    completedAt: summary.lastCompletedAt,
+    progressPercent: progress.percent,
+    code: `CL-${code}`,
+  });
 });
 
 app.use((_request, response) => response.status(404).json({ error: 'Rota não encontrada.' }));

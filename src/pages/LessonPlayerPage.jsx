@@ -1,59 +1,61 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import QuizComponent from '../components/QuizComponent.jsx';
 import QuestionArea from '../components/QuestionArea.jsx';
 import { calculateProgress, getVideoEmbedUrl } from '../utils/courseUtils.js';
 
+// Um módulo está concluído quando todos os quizzes dele foram aprovados; sem
+// quiz, quando todas as aulas de vídeo foram concluídas.
+const isModuleComplete = (module, completedLessons) => {
+  const quizzes = module.lessons.filter((lesson) => lesson.type === 'quiz');
+  const required = quizzes.length > 0 ? quizzes : module.lessons.filter((lesson) => lesson.type === 'video');
+  return required.every((lesson) => completedLessons.has(lesson.id));
+};
+
 const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressUpdate, questions, onAskQuestion }) => {
     const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
     const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
-    
-    // Memorizados para manter a referência estável entre renderizações: sem isso,
-    // o `|| []` e o `new Set()` criariam objetos novos a cada render e o efeito
-    // de desbloqueio de módulos abaixo dispararia sem necessidade.
+    const hasPositioned = useRef(false);
+
     const courseContent = useMemo(() => content || [], [content]);
+    const completedLessons = useMemo(() => progress?.completed || new Set(), [progress]);
 
-    const currentProgress = useMemo(
-      () => progress || { completed: new Set(), unlocked: new Set([0]) },
-      [progress]
-    );
-    const { completed: completedLessons, unlocked: unlockedModules } = currentProgress;
+    // Os módulos liberados são derivados das aulas concluídas, sem estado
+    // próprio: o módulo N abre quando o N-1 está liberado e concluído.
+    const unlockedModules = useMemo(() => {
+      const unlocked = new Set([0]);
+      for (let index = 1; index < courseContent.length; index += 1) {
+        if (!unlocked.has(index - 1) || !isModuleComplete(courseContent[index - 1], completedLessons)) break;
+        unlocked.add(index);
+      }
+      return unlocked;
+    }, [courseContent, completedLessons]);
 
-    // ATENÇÃO: este efeito precisa ficar ANTES do return antecipado de
-    // "Conteúdo Indisponível". Hooks devem ser chamados na mesma ordem em todas
-    // as renderizações; se ele ficasse depois do return, um curso sem aulas
-    // registraria menos hooks e o React quebraria ao receber o conteúdo depois.
-    // O caso "sem conteúdo" já é tratado pela guarda na primeira linha do efeito.
+    // Ao abrir o curso, posiciona o aluno na primeira aula pendente dos módulos
+    // liberados, para "Continuar" retomar de onde ele parou. Roda uma única vez,
+    // quando conteúdo e progresso já chegaram da API.
     useEffect(() => {
-      if (courseContent.length === 0 || !courseContent[currentModuleIndex]) return;
+      if (hasPositioned.current || courseContent.length === 0 || !progress) return;
+      hasPositioned.current = true;
 
-      const nextModuleIndex = currentModuleIndex + 1;
-
-      if (nextModuleIndex >= courseContent.length || unlockedModules.has(nextModuleIndex)) {
-        return;
+      for (let moduleIndex = 0; moduleIndex < courseContent.length; moduleIndex += 1) {
+        if (!unlockedModules.has(moduleIndex)) break;
+        const lessonIndex = courseContent[moduleIndex].lessons.findIndex((lesson) => !completedLessons.has(lesson.id));
+        if (lessonIndex >= 0) {
+          setCurrentModuleIndex(moduleIndex);
+          setCurrentLessonIndex(lessonIndex);
+          return;
+        }
       }
+    }, [courseContent, progress, unlockedModules, completedLessons]);
 
-      const currentModule = courseContent[currentModuleIndex];
-      const lessonsInModule = currentModule.lessons;
-      const quizzesInModule = lessonsInModule.filter(l => l.type === 'quiz');
-      const contentLessonsInModule = lessonsInModule.filter(l => l.type === 'video');
-
-      let isModuleComplete = false;
-
-      if (quizzesInModule.length > 0) {
-        isModuleComplete = quizzesInModule.every(q => completedLessons.has(q.id));
-      } else if (contentLessonsInModule.length > 0) {
-        isModuleComplete = contentLessonsInModule.every(v => completedLessons.has(v.id));
-      } else {
-        isModuleComplete = true;
-      }
-
-      if (isModuleComplete) {
-        const newUnlocked = new Set(unlockedModules).add(nextModuleIndex);
-        onProgressUpdate(courseId, { unlocked: newUnlocked });
-      }
-
-    }, [completedLessons, currentModuleIndex, unlockedModules, courseId, courseContent, onProgressUpdate]);
+    if (content === undefined) {
+      return (
+        <div className="container" style={{ marginTop: '30px' }}>
+          <div className="card"><p>Carregando aulas do curso...</p></div>
+        </div>
+      );
+    }
 
     if (courseContent.length === 0 || !courseContent[currentModuleIndex] || !courseContent[currentModuleIndex].lessons[currentLessonIndex]) {
       return (
@@ -134,7 +136,7 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
       }
     };
     
-    const localProgress = calculateProgress(courseId, { [courseId]: currentProgress }, courseContent);
+    const localProgress = calculateProgress(courseId, { [courseId]: { completed: completedLessons } }, courseContent);
   
     const renderPlayerContent = () => {
       switch(currentLesson.type) {
@@ -229,7 +231,7 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
               <div className="progress-bar-container">
                 <div className="progress-bar" style={{ width: `${localProgress}%` }}></div>
               </div>
-              <p>{localProgress}% concluído (aulas de vídeo)</p>
+              <p>{localProgress}% concluído</p>
             </div>
   
             <div className="card">

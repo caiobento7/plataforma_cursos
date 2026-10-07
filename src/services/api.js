@@ -102,6 +102,12 @@ export const api = {
   }),
   getProfile: () => request('/api/students/me'),
   getEnrollments: () => request('/api/enrollments/me'),
+  getCertificate: (courseId) => request(`/api/enrollments/${courseId}/certificate`),
+  updateProfile: (fullName) => request('/api/students/me', { method: 'PATCH', body: JSON.stringify({ fullName }) }),
+  changePassword: (currentPassword, newPassword) => request('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  }),
   enroll: (courseId) => request('/api/enrollments', { method: 'POST', body: JSON.stringify({ courseId }) }),
   getMySupportTickets: () => request('/api/support-tickets/me'),
   createSupportTicket: (ticket) => request('/api/support-tickets', { method: 'POST', body: JSON.stringify(ticket) }),
