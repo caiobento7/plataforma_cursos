@@ -79,11 +79,12 @@ export const buildCertificatePdf = async (certificate) => {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(13);
   doc.setTextColor(70, 85, 105);
+  const score = certificate.quizScore !== null && certificate.quizScore !== undefined ? ` e nota final de ${certificate.quizScore}%` : '';
   doc.text(
-    `com carga horária de ${hours}, concluído em ${formatLongDate(certificate.completedAt)}.`,
+    `com carga horária de ${hours}${score}, concluído em ${formatLongDate(certificate.completedAt)}.`,
     center,
     afterTitle + 14,
-    { align: 'center' },
+    { align: 'center', maxWidth: width - 60 },
   );
 
   // Assinatura em fonte cursiva, com tinta azul

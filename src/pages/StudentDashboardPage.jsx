@@ -5,7 +5,7 @@ import { downloadCertificatePdf } from '../utils/certificatePdf.js';
 import { formatDate, getAccessInfo } from '../utils/courseUtils.js';
 import { formatTicketDate, ticketLimits, ticketStatusLabels } from '../utils/ticketUtils.js';
 
-const certificateMinProgress = 60;
+const certificateMinScore = 70;
 
 const tabs = [
   { id: 'courses', label: 'Cursos' },
@@ -334,13 +334,13 @@ const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onPro
 
     return (
       <>
-        <p className="st-intro">O certificado é liberado ao concluir {certificateMinProgress}% das aulas e sai em PDF com seu nome, a carga horária, a data de conclusão e um código de verificação.</p>
+        <p className="st-intro">O certificado é liberado ao concluir todas as aulas do curso com nota final de pelo menos {certificateMinScore}% nos quizzes. Ele sai em PDF com seu nome, a carga horária, a nota final, a data de conclusão e um código de verificação.</p>
         {certificateError && <p className="ui-alert error" role="alert">{certificateError}</p>}
         <div className="st-cert-grid">
           {purchasedCourses.map((course) => {
             const progress = getProgress(course);
             const available = progress.certificateAvailable;
-            const lessonsNeeded = Math.max(0, Math.ceil((progress.totalLessons * certificateMinProgress) / 100) - progress.completedLessons);
+            const lessonsNeeded = Math.max(0, progress.totalLessons - progress.completedLessons);
             return (
               <article key={course.id} className="st-cert">
                 <CertificatePaper courseTitle={course.title} studentName={fullName} locked={!available} />
@@ -348,7 +348,7 @@ const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onPro
                   <h3>{course.title}</h3>
                   {available ? (
                     <>
-                      <span className="st-done"><CheckCircle2 size={15} aria-hidden="true" /> Disponível para download</span>
+                      <span className="st-done"><CheckCircle2 size={15} aria-hidden="true" /> Disponível para download{progress.quizScore !== null && progress.quizScore !== undefined ? ` · nota final ${progress.quizScore}%` : ''}</span>
                       <button type="button" className="ui-btn ui-btn-primary ui-btn-block" onClick={() => handleIssueCertificate(course)} disabled={issuingCourseId === course.id}>
                         {issuingCourseId === course.id ? 'Gerando PDF...' : 'Baixar certificado'}
                       </button>
@@ -358,7 +358,9 @@ const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onPro
                       <span className="st-percent">
                         {progress.totalLessons === 0
                           ? 'O curso ainda não tem aulas publicadas'
-                          : `${progress.percent}% concluído · ${lessonsNeeded === 1 ? 'falta 1 aula' : `faltam ${lessonsNeeded} aulas`}`}
+                          : lessonsNeeded > 0
+                            ? `${progress.percent}% concluído · ${lessonsNeeded === 1 ? 'falta 1 aula' : `faltam ${lessonsNeeded} aulas`}`
+                            : `Nota final ${progress.quizScore}% · mínimo ${certificateMinScore}%. Refaça os quizzes para melhorar a nota.`}
                       </span>
                       {getAccessInfo(course.expiresAt).expired
                         ? <button type="button" className="ui-btn ui-btn-primary ui-btn-block" onClick={() => onRenewCourse(course)}>Renovar acesso para concluir</button>

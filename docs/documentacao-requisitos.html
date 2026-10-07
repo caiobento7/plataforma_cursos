@@ -458,7 +458,8 @@ recebe as respostas corretas, usadas pelo editor de conteúdo.</li>
 <li><strong>Quiz corrigido no servidor.</strong> As respostas do aluno são enviadas à API, que calcula a
 nota, compara com a nota mínima e, se aprovado, registra a conclusão. Um quiz não pode
 ser marcado como concluído sem ser feito.</li>
-<li><strong>Certificado.</strong> A regra dos 60% de conclusão é conferida pela API antes de devolver os
+<li><strong>Certificado.</strong> A regra de liberação (todas as aulas concluídas e nota final de pelo
+  menos 70%, a média da melhor nota de cada quiz) é conferida pela API antes de devolver os
 dados do certificado.</li>
 </ul>
 <p>A verificação é feita no servidor, e não na interface. Ocultar um botão no cliente não
@@ -537,7 +538,7 @@ desenvolvida em uma branch própria, revisada em um Pull Request e integrada à 
 </tr>
 <tr>
 <td><code>lesson_progress</code></td>
-<td>Registro de conclusão de cada aula por aluno</td>
+<td>Registro de conclusão de cada aula por aluno e melhor nota de cada quiz</td>
 </tr>
 <tr>
 <td><code>lesson_questions</code></td>
@@ -745,7 +746,7 @@ por recurso. A coluna &quot;Acesso&quot; indica a proteção aplicada.</p>
 <td>GET</td>
 <td><code>/api/enrollments/:courseId/certificate</code></td>
 <td>Autenticado</td>
-<td>Dados do certificado (a partir de 60%)</td>
+<td>Dados do certificado (100% das aulas e nota final ≥ 70%)</td>
 </tr>
 <tr>
 <td>POST</td>
@@ -944,7 +945,7 @@ serviço de autenticação.</p>
 <td>Emitir certificado de conclusão em PDF</td>
 <td>4.1.8</td>
 <td>Implementado</td>
-<td>Liberado a partir de 60%; nome, carga horária, data e código</td>
+<td>Liberado com 100% das aulas e nota final ≥ 70%; nome, carga horária, nota, data e código</td>
 </tr>
 <tr>
 <td>RF17</td>

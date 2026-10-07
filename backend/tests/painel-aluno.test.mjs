@@ -63,16 +63,25 @@ try {
   check('próxima aula após 2 concluídas: Aula 3', mine.progress.nextLesson?.title === 'Aula 3' && mine.progress.nextLesson.lessonNumber === 3, JSON.stringify(mine.progress.nextLesson));
 
   const blocked = await api('GET', `/api/enrollments/${courseId}/certificate`, student.token);
-  check('certificado bloqueado abaixo de 60% (403)', blocked.status === 403 && blocked.body.error.includes('40%'), JSON.stringify(blocked.body));
+  check('certificado bloqueado com aulas pendentes (403)', blocked.status === 403 && blocked.body.error.includes('40%'), JSON.stringify(blocked.body));
 
   await api('PUT', `/api/lessons/${lessonIds[2]}/progress`, student.token, { completed: true });
   enrollments = await api('GET', '/api/enrollments/me', student.token);
   mine = enrollments.body.find((item) => item.course.id === courseId);
-  check('3/5 aulas = 60%, certificado disponível', mine.progress.percent === 60 && mine.progress.certificateAvailable === true && mine.progress.lastCompletedAt, JSON.stringify(mine.progress));
+  check('3/5 aulas = 60%, certificado ainda indisponível', mine.progress.percent === 60 && mine.progress.certificateAvailable === false && mine.progress.lastCompletedAt, JSON.stringify(mine.progress));
   check('próxima aula passa para o módulo 2', mine.progress.nextLesson?.title === 'Aula 4' && mine.progress.nextLesson.moduleNumber === 2 && mine.progress.nextLesson.lessonNumber === 1, JSON.stringify(mine.progress.nextLesson));
+
+  // Certificado: todas as aulas concluídas e nota final de pelo menos 70%.
+  await api('PUT', `/api/lessons/${lessonIds[3]}/progress`, student.token, { completed: true });
+  const quizQuestion = content.body[1].lessons[1].quizData.questions[0];
+  await api('POST', `/api/lessons/${lessonIds[4]}/quiz-attempt`, student.token, { answers: { [quizQuestion.id]: 'A' } });
+  enrollments = await api('GET', '/api/enrollments/me', student.token);
+  mine = enrollments.body.find((item) => item.course.id === courseId);
+  check('5/5 aulas com nota 100%: certificado disponível', mine.progress.percent === 100 && mine.progress.quizScore === 100 && mine.progress.certificateAvailable === true, JSON.stringify(mine.progress));
 
   const certificate = await api('GET', `/api/enrollments/${courseId}/certificate`, student.token);
   check('certificado liberado (200)', certificate.status === 200, JSON.stringify(certificate.body));
+  check('certificado traz a nota final', certificate.body.quizScore === 100, JSON.stringify(certificate.body));
   check('certificado com nome, curso e data', certificate.body.studentName === 'Teste aluno' && certificate.body.courseTitle.includes('[TESTE] Painel') && certificate.body.completedAt, JSON.stringify(certificate.body));
   // 30 + 75 + 45 + 120 + 10 = 280 min -> 5 h
   check('carga horária somada (280 min = 5 h)', certificate.body.workloadHours === 5, String(certificate.body.workloadHours));

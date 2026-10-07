@@ -23,7 +23,7 @@ const steps = [
 
 const faq = [
   { question: 'Preciso pagar para começar?', answer: 'Não. Criar a conta é gratuito e o catálogo tem cursos gratuitos. Nos cursos pagos, você paga apenas pelo curso que escolher.' },
-  { question: 'Como funciona o certificado?', answer: 'Ele é liberado quando você conclui 60% das aulas do curso e é gerado em PDF com seu nome, a carga horária, a data de conclusão e um código de verificação.' },
+  { question: 'Como funciona o certificado?', answer: 'Ele é liberado quando você conclui todas as aulas do curso com nota final de pelo menos 70% nos quizzes. O PDF traz seu nome, a carga horária, a nota final, a data de conclusão e um código de verificação.' },
   { question: 'Por quanto tempo tenho acesso ao curso?', answer: 'Cada curso fica disponível pelo prazo informado na sua página, em geral 6 meses a partir da matrícula. Se o prazo terminar, você pode renovar o acesso e continuar de onde parou.' },
   { question: 'Posso estudar no meu ritmo?', answer: 'Sim. As aulas ficam disponíveis a qualquer hora e o progresso é salvo automaticamente. Ao voltar, você continua de onde parou.' },
   { question: 'Como tiro dúvidas?', answer: 'Pelo painel do aluno você abre um chamado para a equipe e acompanha a resposta no mesmo lugar.' },

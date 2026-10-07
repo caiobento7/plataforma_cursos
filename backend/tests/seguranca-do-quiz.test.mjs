@@ -79,6 +79,23 @@ try {
   check('aprovação conclui o quiz no servidor', progress.body.completedLessonIds.includes(quizLesson.id), JSON.stringify(progress.body));
   check('resposta da tentativa não revela o gabarito', !JSON.stringify(passed.body).includes('correct_answer') && !('correct' in passed.body));
 
+  // Aprovado com 50% e todas as aulas concluídas, mas a nota final fica abaixo de 70%.
+  progress = await api('GET', '/api/enrollments/me', student.token);
+  let mine = progress.body.find((item) => item.course.id === courseId).progress;
+  check('100% das aulas com nota 50%: sem certificado', mine.percent === 100 && mine.quizScore === 50 && mine.certificateAvailable === false, JSON.stringify(mine));
+  const lowScore = await api('GET', `/api/enrollments/${courseId}/certificate`, student.token);
+  check('certificado bloqueado pela nota (403)', lowScore.status === 403 && lowScore.body.error.includes('70%') && lowScore.body.error.includes('50%'), JSON.stringify(lowScore.body));
+
+  const retake = await api('POST', `/api/lessons/${quizLesson.id}/quiz-attempt`, student.token, { answers: { [q1.id]: 'A', [q2.id]: 'D' } });
+  check('refazer com 100% sobe a melhor nota', retake.body.score === 100 && retake.body.bestScore === 100, JSON.stringify(retake.body));
+  const worse = await api('POST', `/api/lessons/${quizLesson.id}/quiz-attempt`, student.token, { answers: { [q1.id]: 'B', [q2.id]: 'C' } });
+  check('tentativa pior não baixa a melhor nota', worse.body.passed === false && worse.body.bestScore === 100, JSON.stringify(worse.body));
+  progress = await api('GET', '/api/enrollments/me', student.token);
+  mine = progress.body.find((item) => item.course.id === courseId).progress;
+  check('nota final 100%: certificado disponível', mine.quizScore === 100 && mine.certificateAvailable === true, JSON.stringify(mine));
+  const unlocked = await api('GET', `/api/enrollments/${courseId}/certificate`, student.token);
+  check('certificado liberado com a nota (200)', unlocked.status === 200 && unlocked.body.quizScore === 100, JSON.stringify(unlocked.body));
+
   const outsiderAttempt = await api('POST', `/api/lessons/${quizLesson.id}/quiz-attempt`, outsider.token, { answers: {} });
   check('aluno sem matrícula não faz o quiz (403)', outsiderAttempt.status === 403);
   const videoAttempt = await api('POST', `/api/lessons/${videoLesson.id}/quiz-attempt`, student.token, { answers: {} });

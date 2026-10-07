@@ -67,10 +67,10 @@ try {
 
   const noAnswer = await api('PUT', `/api/admin/support-tickets/${general.body.id}`, admin.token, { status: 'answered', adminResponse: '  ' });
   check('responder sem texto responde 400', noAnswer.status === 400);
-  const answered = await api('PUT', `/api/admin/support-tickets/${general.body.id}`, admin.token, { status: 'answered', adminResponse: 'O certificado libera com 60% do curso concluído.' });
+  const answered = await api('PUT', `/api/admin/support-tickets/${general.body.id}`, admin.token, { status: 'answered', adminResponse: 'O certificado libera com 100% das aulas e nota final de 70%.' });
   check('admin responde (status answered)', answered.status === 200 && answered.body.status === 'answered' && answered.body.adminResponse, JSON.stringify(answered.body));
   const studentSees = await api('GET', '/api/support-tickets/me', student.token);
-  check('aluno vê a resposta', studentSees.body.find((t) => t.id === general.body.id)?.adminResponse?.includes('60%'));
+  check('aluno vê a resposta', studentSees.body.find((t) => t.id === general.body.id)?.adminResponse?.includes('nota final'));
 
   const closed = await api('PUT', `/api/admin/support-tickets/${withCourse.body.id}`, admin.token, { status: 'closed', adminResponse: '' });
   check('admin encerra sem resposta', closed.status === 200 && closed.body.status === 'closed', JSON.stringify(closed.body));
