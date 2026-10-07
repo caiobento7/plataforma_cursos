@@ -122,7 +122,7 @@ const canManageCourse = async (courseId, userId) => {
 const getLessonContext = async (lessonId) => {
   const { data: lesson, error: lessonError } = await supabaseAdmin
     .from('lessons')
-    .select('id, module_id')
+    .select('id, module_id, content_type')
     .eq('id', lessonId)
     .maybeSingle();
 
@@ -135,7 +135,7 @@ const getLessonContext = async (lessonId) => {
     .maybeSingle();
 
   if (moduleError || !module) return null;
-  return { lessonId: lesson.id, moduleId: module.id, courseId: module.course_id };
+  return { lessonId: lesson.id, moduleId: module.id, courseId: module.course_id, contentType: lesson.content_type };
 };
 
 const hasCourseAccess = async (courseId, userId) => {
@@ -822,13 +822,50 @@ const parseCourseContentPayload = (modules) => {
   return { modules: normalizedModules };
 };
 
+// Identifica o usuário quando a requisição traz um token, sem exigir login.
+const getOptionalUser = async (request) => {
+  const authorization = request.headers.authorization;
+  const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : null;
+  if (!token) return null;
+  const { data, error } = await supabaseAuth.auth.getUser(token);
+  return error ? null : data.user;
+};
+
+// Só a grade (títulos, tipos e durações), para quem não tem acesso ao curso.
+const toSyllabusLesson = ({ id, title, duration, type }) => ({ id, title, duration, type });
+
+// Conteúdo para o aluno matriculado: vídeos, materiais e perguntas do quiz,
+// mas sem a resposta correta, que fica só no servidor.
+const withoutAnswers = (lesson) => (lesson.quizData
+  ? {
+    ...lesson,
+    quizData: {
+      ...lesson.quizData,
+      questions: lesson.quizData.questions.map(({ id, text, options }) => ({ id, text, options })),
+    },
+  }
+  : lesson);
+
+// O que cada um recebe:
+// - administrador: tudo, inclusive o gabarito (usado pelo editor);
+// - aluno matriculado: aulas completas, sem o gabarito dos quizzes;
+// - visitante ou aluno sem matrícula: apenas a grade do curso.
 app.get('/api/courses/:courseId/content', async (request, response) => {
   const courseId = parseCourseId(request.params.courseId);
   if (!courseId) return response.status(400).json({ error: 'Identificador de curso inválido.' });
 
+  const user = await getOptionalUser(request);
+  const isManager = user ? await canManageCourse(courseId, user.id) : false;
+  const isEnrolled = !isManager && user ? await hasCourseAccess(courseId, user.id) : false;
+
   const { data, error } = await fetchCourseContent(courseId);
   if (error) return response.status(500).json({ error });
-  return response.json(data);
+  if (isManager) return response.json(data);
+
+  return response.json(data.map((module) => ({
+    ...module,
+    lessons: module.lessons.map(isEnrolled ? withoutAnswers : toSyllabusLesson),
+  })));
 });
 
 // Salva o conteúdo completo do curso de uma vez. A gravação acontece numa
@@ -1070,6 +1107,9 @@ app.put('/api/lessons/:lessonId/progress', requireAuth, async (request, response
   if (!await hasCourseAccess(context.courseId, request.user.id)) {
     return response.status(403).json({ error: 'Você não possui acesso a esta aula.' });
   }
+  if (context.contentType === 'quiz' && completed) {
+    return response.status(400).json({ error: 'O quiz é concluído automaticamente ao ser aprovado.' });
+  }
 
   const { data, error } = await supabaseAdmin
     .from('lesson_progress')
@@ -1084,6 +1124,48 @@ app.put('/api/lessons/:lessonId/progress', requireAuth, async (request, response
 
   if (error) return response.status(400).json({ error: 'Não foi possível atualizar o progresso.' });
   return response.json(data);
+});
+
+// Corrige o quiz no servidor: o gabarito nunca vai para o navegador. Se o aluno
+// atingir a nota mínima, a aula do quiz é registrada como concluída.
+app.post('/api/lessons/:lessonId/quiz-attempt', requireAuth, async (request, response) => {
+  const lessonId = parseLessonId(request.params.lessonId);
+  const { answers } = request.body;
+  if (!lessonId || !answers || typeof answers !== 'object' || Array.isArray(answers)) {
+    return response.status(400).json({ error: 'Envie as respostas do quiz.' });
+  }
+
+  const context = await getLessonContext(lessonId);
+  if (!context) return response.status(404).json({ error: 'Aula não encontrada.' });
+  if (context.contentType !== 'quiz') return response.status(400).json({ error: 'Esta aula não é um quiz.' });
+  if (!await hasCourseAccess(context.courseId, request.user.id)) {
+    return response.status(403).json({ error: 'Você não possui acesso a esta aula.' });
+  }
+
+  const { data: quiz } = await supabaseAdmin.from('quizzes').select('id, pass_mark').eq('lesson_id', lessonId).maybeSingle();
+  const { data: questions, error: questionsError } = quiz
+    ? await supabaseAdmin.from('quiz_questions').select('id, correct_answer').eq('quiz_id', quiz.id)
+    : { data: [], error: null };
+  if (questionsError) return response.status(500).json({ error: 'Não foi possível corrigir o quiz.' });
+  if (!quiz || questions.length === 0) return response.status(400).json({ error: 'Este quiz ainda não tem perguntas.' });
+
+  const correctAnswers = questions.filter((question) => answers[question.id] === question.correct_answer).length;
+  const score = Math.round((correctAnswers / questions.length) * 100);
+  const passed = score >= quiz.pass_mark;
+
+  if (passed) {
+    const { error } = await supabaseAdmin
+      .from('lesson_progress')
+      .upsert({
+        student_id: request.user.id,
+        lesson_id: lessonId,
+        completed: true,
+        completed_at: new Date().toISOString(),
+      }, { onConflict: 'student_id,lesson_id' });
+    if (error) return response.status(500).json({ error: 'Não foi possível registrar a aprovação.' });
+  }
+
+  return response.json({ score, correctAnswers, totalQuestions: questions.length, passMark: quiz.pass_mark, passed });
 });
 
 app.get('/api/lessons/:lessonId/questions', requireAuth, async (request, response) => {

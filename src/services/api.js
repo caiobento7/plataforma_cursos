@@ -99,6 +99,7 @@ export const api = {
     body: JSON.stringify({ modules }),
   }),
   getCourseProgress: (courseId) => request(`/api/courses/${courseId}/progress`),
+  submitQuiz: (lessonId, answers) => request(`/api/lessons/${lessonId}/quiz-attempt`, { method: 'POST', body: JSON.stringify({ answers }) }),
   getLessonQuestions: (lessonId) => request(`/api/lessons/${lessonId}/questions`),
   askLessonQuestion: (lessonId, text) => request(`/api/lessons/${lessonId}/questions`, { method: 'POST', body: JSON.stringify({ text }) }),
   getAdminLessonQuestions: () => request('/api/admin/lesson-questions'),
