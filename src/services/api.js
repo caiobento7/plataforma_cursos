@@ -6,6 +6,9 @@ let accessToken = sessionStorage.getItem('cursolab_access_token');
 let refreshToken = sessionStorage.getItem('cursolab_refresh_token');
 let refreshPromise = null;
 
+// Indica se há uma sessão salva neste navegador (usada para restaurar o login).
+export const hasStoredSession = () => Boolean(accessToken || refreshToken);
+
 export const setAccessToken = (token, nextRefreshToken = null) => {
   accessToken = token;
   if (token) sessionStorage.setItem('cursolab_access_token', token);

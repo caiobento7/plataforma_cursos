@@ -1,3 +1,7 @@
+export const formatPrice = (price) => (price === 0
+  ? 'Gratuito'
+  : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price));
+
 // Percentual de aulas concluídas (vídeos e quizzes), o mesmo cálculo feito
 // pela API em GET /api/enrollments/me.
 export const calculateProgress = (courseId, courseProgress, content) => {

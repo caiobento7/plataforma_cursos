@@ -1,134 +1,148 @@
-import React from 'react';
-import { Star } from 'lucide-react';
+import { ArrowLeft, Award, CheckCircle2, ChevronDown, Clock, ListChecks, MonitorSmartphone, PlayCircle, Star } from 'lucide-react';
+import { formatPrice } from '../utils/courseUtils.js';
 
-const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isAuthenticated }) => {
-    const reviewCount = course?.reviewCount ?? 0;
+// Converte as durações livres das aulas ("15 min", "1h 30min") em minutos.
+const durationMinutes = (duration) => {
+  const text = String(duration || '').toLowerCase();
+  const hours = Number(text.match(/(\d+)\s*h/)?.[1] || 0);
+  const minutes = Number(text.match(/(\d+)\s*m/)?.[1] || 0);
+  return hours || minutes ? hours * 60 + minutes : Number(text.match(/\d+/)?.[0] || 0);
+};
 
-    if (!course) {
-      return (
-        <div className="container" style={{ marginTop: '30px' }}>
-          <h2>Curso não encontrado</h2>
-          <button className="btn" onClick={() => navigateTo('home')}>Voltar para Home</button>
-        </div>
-      );
-    }
-    
-    const courseContent = content || [];
-    const handleAddToCart = () => {
-      if (!isAuthenticated) return navigateTo('login', { checkoutCourseId: course.id });
-      addToCart(course);
-    };
-    const handleCheckout = () => {
-      if (!isAuthenticated) return navigateTo('login', { checkoutCourseId: course.id });
-      addToCart(course);
-      navigateTo('cart');
-    };
-  
+const formatTotalDuration = (minutes) => {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}h ${rest}min` : `${hours}h`;
+};
+
+// "Módulo 1: Introdução" -> "Introdução"
+const moduleTopic = (title) => title.replace(/^m[óo]dulo\s*\d+\s*[:.-]\s*/i, '');
+
+const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isEnrolled = false, isInCart = false }) => {
+  if (!course) {
     return (
-      <>
-        <section className="course-header">
-          <div className="container">
-            <h1>{course.title}</h1>
-            <p>Aprenda os fundamentos da programação com exemplos práticos e projetos reais</p>
-            <div className="course-meta">
-              <div>
-                <div>Instrutor: {course.instructor}</div>
-                <div className="course-rating"><Star size={15} fill="currentColor" aria-hidden="true" /> {course.rating} ({reviewCount} avaliações)</div>
-              </div>
-              <div className="course-actions">
-                {isAuthenticated ? <>
-                  <button className="btn" onClick={handleAddToCart}>Adicionar ao Carrinho</button>
-                  <button className="btn btn-accent" onClick={handleCheckout}>Comprar Agora</button>
-                </> : <button className="btn btn-accent" onClick={handleCheckout}>Entrar para comprar</button>}
-              </div>
-            </div>
-          </div>
-        </section>
-  
+      <section className="ui-page">
         <div className="container">
-          <div className="course-content">
-            <div className="course-main">
-              <div className="card">
-                <h2>Descrição do Curso</h2>
-                <p>Este curso apresenta os conceitos fundamentais da programação, utilizando uma linguagem moderna e acessível para iniciantes.</p>
-                
-                <h3 style={{ marginTop: '20px' }}>O que você aprenderá</h3>
-                <ul style={{ marginLeft: '20px', marginTop: '10px' }}>
-                  <li>Fundamentos da lógica de programação</li>
-                  <li>Estruturas de dados básicas</li>
-                  <li>Controle de fluxo e loops</li>
-                  <li>Resolução de problemas com código</li>
-                </ul>
-              </div>
-              
-              <div className="card">
-                <h2>Conteúdo do Curso</h2>
-                {courseContent.length === 0 ? (
-                  <p>Nenhum conteúdo adicionado a este curso ainda.</p>
-                ) : (
-                  courseContent.map((module) => (
-                    <div className="module" key={module.id}>
-                      <div className="module-header">{module.title}</div>
-                      {module.lessons.map((lesson, lessonIndex) => (
-                        <div className="lesson" key={lesson.id}>
-                          <span>{lessonIndex + 1}. {lesson.title}</span>
-                          <span>{lesson.duration}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))
-                )}
-              </div>
-              
-              <div className="card">
-                <h2>Avaliações</h2>
-                <div className="review">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <strong>Carlos Mendes</strong>
-                    <span className="course-rating">5 <Star size={14} fill="currentColor" aria-hidden="true" /></span>
-                  </div>
-                  <p>Excelente curso para iniciantes. O professor explica de forma clara e objetiva.</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="course-sidebar">
-              <div className="card">
-                <img 
-                  src={course.imageUrl} 
-                  alt={course.title} 
-                  className="video-player" // Reutiliza o estilo de player
-                  onError={(e) => e.target.src = 'https://placehold.co/600x400/2c3e50/ffffff?text=Preview+Indisponível'}
-                />
-                <div style={{ textAlign: 'center', marginTop: '15px' }}>
-                  <button 
-                    className="btn btn-accent" 
-                    style={{ width: '100%' }} 
-                    onClick={handleCheckout}
-                  >
-                    {!isAuthenticated ? 'Entrar para comprar' : course.price === 0 ? 'Inscrever-se Agora' : `Comprar Agora - R$ ${course.price.toFixed(2)}`}
-                  </button>
-                </div>
-                <div style={{ marginTop: '15px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span>Duração:</span>
-                    <span>{courseContent.length} Módulos</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span>Nível:</span>
-                    <span>{course.level}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span>Certificado:</span>
-                    <span>Sim</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="ui-empty">
+            <h2>Curso não encontrado</h2>
+            <p>Ele pode ter sido removido do catálogo.</p>
+            <button type="button" className="ui-btn ui-btn-secondary" onClick={() => navigateTo('home')}>Voltar ao catálogo</button>
           </div>
         </div>
-      </>
+      </section>
     );
+  }
+
+  const modules = content || [];
+  const lessons = modules.flatMap((module) => module.lessons);
+  const quizCount = lessons.filter((lesson) => lesson.type === 'quiz').length;
+  const totalMinutes = lessons.reduce((total, lesson) => total + durationMinutes(lesson.duration), 0);
+  const isLoadingContent = content === undefined;
+
+  const handleBuyNow = () => {
+    addToCart(course);
+    navigateTo('cart');
   };
 
-  export default CourseDetailsPage;
+  return (
+    <section className="ui-page">
+      <div className="container">
+        <button type="button" className="ui-back" onClick={() => navigateTo('home')}><ArrowLeft size={16} aria-hidden="true" /> Catálogo</button>
+
+        <div className="ui-detail">
+          <div>
+            <span className="ui-detail-level">{course.level}</span>
+            <h1>{course.title}</h1>
+            <p className="ui-detail-lead">
+              {lessons.length > 0
+                ? `Um curso de nível ${course.level.toLowerCase()} com ${modules.length} ${modules.length === 1 ? 'módulo' : 'módulos'} e ${lessons.length} aulas. Estude no seu ritmo, teste seus conhecimentos nos quizzes e emita o certificado ao concluir.`
+                : `Um curso de nível ${course.level.toLowerCase()} da CursoLab. Estude no seu ritmo e emita o certificado ao concluir.`}
+            </p>
+
+            <dl className="ui-detail-facts">
+              <div><dt>Avaliação</dt><dd><Star size={15} fill="currentColor" aria-hidden="true" /> {course.rating.toFixed(1)}{course.reviewCount > 0 && <small style={{ color: 'var(--ui-muted)', fontWeight: 500 }}>&nbsp;({course.reviewCount})</small>}</dd></div>
+              {course.enrollmentCount > 0 && <div><dt>Alunos</dt><dd>{course.enrollmentCount.toLocaleString('pt-BR')}</dd></div>}
+              {lessons.length > 0 && <div><dt>Aulas</dt><dd>{lessons.length}</dd></div>}
+              {totalMinutes > 0 && <div><dt>Duração</dt><dd>{formatTotalDuration(totalMinutes)}</dd></div>}
+            </dl>
+
+            {modules.length > 0 && (
+              <>
+                <h2>O que você vai aprender</h2>
+                <ul className="ui-learn">
+                  {modules.map((module) => (
+                    <li key={module.id}><CheckCircle2 size={18} aria-hidden="true" /> {moduleTopic(module.title)}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            <h2>Conteúdo do curso</h2>
+            {isLoadingContent ? (
+              <p className="ui-muted">Carregando conteúdo...</p>
+            ) : modules.length === 0 ? (
+              <div className="ui-empty"><p>O conteúdo deste curso está sendo preparado.</p></div>
+            ) : (
+              <div className="ui-syllabus">
+                {modules.map((module, index) => (
+                  <details key={module.id} open={index === 0}>
+                    <summary>
+                      <span>{module.title}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                        <small>{module.lessons.length} {module.lessons.length === 1 ? 'aula' : 'aulas'}</small>
+                        <ChevronDown size={18} aria-hidden="true" />
+                      </span>
+                    </summary>
+                    <ol>
+                      {module.lessons.map((lesson) => (
+                        <li key={lesson.id}>
+                          {lesson.type === 'quiz' ? <ListChecks size={16} aria-hidden="true" /> : <PlayCircle size={16} aria-hidden="true" />}
+                          <span>{lesson.title}</span>
+                          <small>{lesson.duration}</small>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <aside className="ui-buy">
+            <img src={course.imageUrl} alt="" onError={(event) => { event.currentTarget.src = 'https://placehold.co/600x450/102a43/ffffff?text=CursoLab'; }} />
+            <div className="ui-buy-body">
+              {isEnrolled ? (
+                <>
+                  <span className="ui-buy-price free">Você já está matriculado</span>
+                  <button type="button" className="ui-btn ui-btn-primary ui-btn-lg ui-btn-block" onClick={() => navigateTo('player', course.id)}>Ir para o curso</button>
+                </>
+              ) : (
+                <>
+                  <span className={`ui-buy-price ${course.price === 0 ? 'free' : ''}`}>{formatPrice(course.price)}</span>
+                  <button type="button" className="ui-btn ui-btn-primary ui-btn-lg ui-btn-block" onClick={handleBuyNow}>
+                    {course.price === 0 ? 'Matricular-se grátis' : 'Comprar agora'}
+                  </button>
+                  {isInCart ? (
+                    <button type="button" className="ui-btn ui-btn-secondary ui-btn-block" onClick={() => navigateTo('cart')}>Ver carrinho</button>
+                  ) : (
+                    <button type="button" className="ui-btn ui-btn-secondary ui-btn-block" onClick={() => addToCart(course)}>Adicionar ao carrinho</button>
+                  )}
+                </>
+              )}
+              <ul>
+                {lessons.length > 0 && <li><PlayCircle size={17} aria-hidden="true" /> {lessons.length} aulas{totalMinutes > 0 ? ` · ${formatTotalDuration(totalMinutes)}` : ''}</li>}
+                {quizCount > 0 && <li><ListChecks size={17} aria-hidden="true" /> {quizCount} {quizCount === 1 ? 'quiz' : 'quizzes'} com nota mínima</li>}
+                <li><Award size={17} aria-hidden="true" /> Certificado de conclusão em PDF</li>
+                <li><Clock size={17} aria-hidden="true" /> Estude no seu ritmo</li>
+                <li><MonitorSmartphone size={17} aria-hidden="true" /> Acesso pelo computador e celular</li>
+              </ul>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default CourseDetailsPage;

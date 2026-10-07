@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Header from './components/Header.jsx';
-import Footer from './components/Footer.jsx';
 import CartPage from './pages/CartPage.jsx';
 import CourseDetailsPage from './pages/CourseDetailsPage.jsx';
 import CourseEditorPage from './pages/CourseEditorPage.jsx';
@@ -8,12 +7,13 @@ import EditCourseMetadataPage from './pages/EditCourseMetadataPage.jsx';
 import EnrollmentSuccessPage from './pages/EnrollmentSuccessPage.jsx';
 import HomePage from './pages/HomePage.jsx';
 import InfoPage from './pages/InfoPage.jsx';
+import LandingPage from './pages/LandingPage.jsx';
 import LessonPlayerPage from './pages/LessonPlayerPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import ProfessorDashboardPage from './pages/ProfessorDashboardPage.jsx';
 import StudentDashboardPage from './pages/StudentDashboardPage.jsx';
 import { courseImages } from './data/courseImages.js';
-import { api, setAccessToken } from './services/api.js';
+import { api, hasStoredSession, setAccessToken } from './services/api.js';
 
 const toCourse = (course) => ({
   id: course.id,
@@ -28,6 +28,9 @@ const toCourse = (course) => ({
   imageUrl: courseImages[course.title] || course.imageUrl || course.image_url || 'https://placehold.co/600x400/1e293b/ffffff?text=Curso',
 });
 
+// Telas abertas a visitantes. As demais exigem login (ver renderização no App).
+const publicPages = ['landing', 'login'];
+
 const isPasswordRecoveryLink = () => {
   const query = new URLSearchParams(window.location.search);
   const fragment = new URLSearchParams(window.location.hash.slice(1));
@@ -35,7 +38,7 @@ const isPasswordRecoveryLink = () => {
 };
 
 const App = () => {
-  const [currentPage, setCurrentPage] = useState(() => (isPasswordRecoveryLink() ? 'login' : 'home'));
+  const [currentPage, setCurrentPage] = useState(() => (isPasswordRecoveryLink() ? 'login' : 'landing'));
   const [currentPageData, setCurrentPageData] = useState(() => (isPasswordRecoveryLink() ? 'recovery' : null));
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [allCourses, setAllCourses] = useState([]);
@@ -46,6 +49,9 @@ const App = () => {
   const [courseProgress, setCourseProgress] = useState({});
   const [questionsDB] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  // Com uma sessão salva, espera o perfil chegar antes de decidir a tela, para
+  // quem já está logado não ver a landing piscar.
+  const [isRestoringSession, setIsRestoringSession] = useState(() => hasStoredSession());
   const [adminAnalytics, setAdminAnalytics] = useState(null);
   const [pendingCheckoutCourseId, setPendingCheckoutCourseId] = useState(null);
   const [activeInfoPage, setActiveInfoPage] = useState(null);
@@ -114,13 +120,17 @@ const App = () => {
 
   useEffect(() => {
     const restoreSession = async () => {
+      if (!hasStoredSession()) return;
       try {
         const profile = await api.getProfile();
         setCurrentUser(profile);
+        setCurrentPage((page) => (page === 'landing' ? (profile.role === 'admin' ? 'dashboard' : 'studentDashboard') : page));
         await loadEnrollments();
         if (profile.role === 'admin') await loadAdminAnalytics();
       } catch {
         setAccessToken(null);
+      } finally {
+        setIsRestoringSession(false);
       }
     };
     restoreSession();
@@ -189,8 +199,9 @@ const App = () => {
     setCurrentUser(null);
     setAdminAnalytics(null);
     setPurchasedCourses([]);
+    setCourseProgress({});
     setCart([]);
-    navigateTo('home');
+    navigateTo('landing');
   };
 
   const addToCart = (course) => {
@@ -302,41 +313,52 @@ const App = () => {
     return filters.rating === 'all' || course.rating >= Number(filters.rating);
   }), [allCourses, filters, searchTerm]);
 
-  const suggestions = useMemo(() => searchTerm
-    ? allCourses.filter((course) => course.title.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 5)
-    : [], [allCourses, searchTerm]);
-
+  const enrolledCourseIds = purchasedCourses.map((course) => course.id);
   const selectedCourse = allCourses.find((course) => course.id === selectedCourseId);
   const selectedContent = coursesContentDB[selectedCourseId];
   const renderAdminDashboard = () => <ProfessorDashboardPage navigateTo={navigateTo} handleCreateCourse={handleCreateCourse} allCourses={allCourses} analytics={adminAnalytics} handleDeleteCourse={handleDeleteCourse} activeTab={currentPageData} />;
 
+  // Visitante tentando abrir uma tela interna vai para o login.
+  const page = !currentUser && !publicPages.includes(currentPage) ? 'login' : currentPage;
+
   const renderPage = () => {
-    switch (currentPage) {
+    switch (page) {
+      case 'landing': return <LandingPage courses={allCourses} onLogin={() => navigateTo('login')} onRegister={() => navigateTo('login', 'register')} onInfoOpen={setActiveInfoPage} />;
       case 'home': return currentUser?.role === 'admin'
         ? renderAdminDashboard()
-        : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} />;
-      case 'details': return <CourseDetailsPage navigateTo={navigateTo} course={selectedCourse} content={selectedContent} addToCart={addToCart} isAuthenticated={currentUser?.role === 'student'} />;
+        : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
+      case 'details': return <CourseDetailsPage navigateTo={navigateTo} course={selectedCourse} content={selectedContent} addToCart={addToCart} isEnrolled={enrolledCourseIds.includes(selectedCourseId)} isInCart={cart.some((course) => course.id === selectedCourseId)} />;
       case 'player': return <LessonPlayerPage navigateTo={navigateTo} courseId={selectedCourseId} content={selectedContent} progress={courseProgress[selectedCourseId]} onProgressUpdate={handleProgressUpdate} questions={questionsDB} onAskQuestion={() => {}} />;
       case 'dashboard': return currentUser?.role === 'admin'
         ? renderAdminDashboard()
-        : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} />;
+        : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
       case 'courseEditor': return <CourseEditorPage navigateTo={navigateTo} course={selectedCourse} content={selectedContent} onSaveContent={handleSaveCourseContent} />;
       case 'editCourseMetadata': return <EditCourseMetadataPage navigateTo={navigateTo} course={selectedCourse} onUpdateCourse={handleUpdateCourseMetadata} />;
-      case 'login': return <LoginPage navigateTo={navigateTo} initialTab={currentPageData || 'login'} onAuthenticated={handleAuthenticated} onLoginComplete={handleLoginComplete} />;
+      case 'login': return <LoginPage key={currentPageData || 'login'} navigateTo={navigateTo} initialTab={currentPageData || 'login'} onAuthenticated={handleAuthenticated} onLoginComplete={handleLoginComplete} />;
       case 'cart': return <CartPage cart={cart} navigateTo={navigateTo} removeFromCart={(id) => setCart((previous) => previous.filter((course) => course.id !== id))} handlePurchase={handlePurchase} />;
       case 'enrollmentSuccess': return currentUser?.role === 'student'
         ? <EnrollmentSuccessPage courses={recentlyPurchasedCourses} navigateTo={navigateTo} />
-        : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} />;
+        : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
       case 'studentDashboard': return currentUser?.role === 'student'
         ? <StudentDashboardPage navigateTo={navigateTo} purchasedCourses={purchasedCourses} currentUser={currentUser} onProfileUpdated={setCurrentUser} />
-        : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} />;
-      default: return <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} />;
+        : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
+      default: return <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
     }
   };
 
-  const isAuthenticationPage = currentPage === 'login';
+  if (isRestoringSession) {
+    return <div className="ui-boot" role="status" aria-label="Carregando"><span /></div>;
+  }
 
-  return <>{!isAuthenticationPage && <Header navigateTo={navigateTo} cartItemCount={cart.length} searchTerm={searchTerm} setSearchTerm={setSearchTerm} suggestions={suggestions} onSuggestionClick={(course) => { setSearchTerm(''); navigateTo('details', course.id); }} currentUser={currentUser} onSignOut={handleSignOut} />}<main>{renderPage()}</main>{!isAuthenticationPage && currentUser?.role !== 'admin' && <Footer onInfoOpen={setActiveInfoPage} />}{activeInfoPage && <InfoPage page={activeInfoPage} onClose={() => setActiveInfoPage(null)} />}</>;
+  const showAppHeader = Boolean(currentUser) && !publicPages.includes(page);
+
+  return (
+    <>
+      {showAppHeader && <Header navigateTo={navigateTo} currentPage={page} cartItemCount={cart.length} currentUser={currentUser} onSignOut={handleSignOut} />}
+      <main>{renderPage()}</main>
+      {activeInfoPage && <InfoPage page={activeInfoPage} onClose={() => setActiveInfoPage(null)} />}
+    </>
+  );
 };
 
 export default App;
