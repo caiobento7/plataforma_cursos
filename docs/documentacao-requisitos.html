@@ -117,8 +117,8 @@ uma operação otimizada e uma experiência de aprendizado flexível e de alta q
 persistência de dados, esta versão adota uma arquitetura cliente-servidor. Foram
 incorporados um serviço de back-end responsável pelas regras de negócio, um banco de
 dados relacional e um mecanismo de autenticação e autorização de usuários. A Seção 5
-detalha essa arquitetura; a Seção 8 delimita o escopo, indicando quais requisitos já
-operam de ponta a ponta e quais permanecem restritos à interface.</p>
+detalha essa arquitetura; a Seção 8 delimita o escopo, indicando a situação de cada
+requisito e as decisões de projeto adotadas.</p>
 <h2>2. Atores</h2>
 <p>No universo da engenharia de software e do design de sistemas, o termo &quot;ator&quot; é usado
 para descrever qualquer entidade externa que interage com um sistema. É um conceito
@@ -207,7 +207,7 @@ ou professor.</li>
 </ul>
 </li>
 </ul>
-<img class="figura" src="imagens/fig-03-busca.jpg" alt="Figura 3"><p class="legenda">Figura 3 - Página Inicial de Busca</p><h4>4.1.3. HU - Filtrar Resultados de Busca</h4>
+<img class="figura" src="imagens/fig-03-busca.jpg" alt="Figura 3"><p class="legenda">Figura 3 - Busca no Catálogo</p><h4>4.1.3. HU - Filtrar Resultados de Busca</h4>
 <ul>
 <li><strong>Como</strong> aluno, <strong>eu quero</strong> filtrar os resultados de uma busca ou categoria, <strong>para que</strong>
 eu possa refinar a lista e encontrar o curso ideal para mim.</li>
@@ -423,8 +423,8 @@ interface, mas apresentava duas limitações incompatíveis com os requisitos le
 os dados eram perdidos a cada recarregamento da página e não havia como distinguir
 usuários, o que inviabilizava associar matrículas, progresso e dúvidas a uma pessoa.</p>
 <p>Para atender a esses requisitos, a solução foi reestruturada em três camadas:</p>
-<pre><code class="language-text">React + Vite   -&gt;   API REST (Express)   -&gt;   PostgreSQL + Auth (Supabase)
-  (cliente)         (regras de negócio)            (persistência)
+<pre><code class="language-text">React + Vite   -&gt;   API REST (Express)   -&gt;   PostgreSQL + Auth + Storage (Supabase)
+  (cliente)         (regras de negócio)            (persistência e arquivos)
 </code></pre>
 <ul>
 <li><strong>Camada de apresentação.</strong> Aplicação React, responsável pela interface e pela
@@ -433,18 +433,33 @@ chamadas HTTP à API.</li>
 <li><strong>Camada de aplicação.</strong> Servidor Express que concentra as regras de negócio e as
 regras de acesso. É a única camada que detém a chave secreta de acesso ao banco.</li>
 <li><strong>Camada de dados.</strong> Banco relacional PostgreSQL hospedado no Supabase, que também
-provê o serviço de autenticação.</li>
+provê o serviço de autenticação e o armazenamento de arquivos (vídeos e materiais).</li>
 </ul>
 <h3>5.1 Autenticação e controle de acesso</h3>
 <p>A autenticação é feita por e-mail e senha através do serviço de autenticação do Supabase,
-que emite um token de acesso. O token é enviado pelo cliente no cabeçalho <code>Authorization</code>
-de cada requisição e validado pelo servidor.</p>
+que emite um token de acesso e um token de renovação. O token de acesso é enviado pelo
+cliente no cabeçalho <code>Authorization</code> de cada requisição e validado pelo servidor; quando
+expira, o cliente usa o token de renovação para obter um novo sem pedir login outra vez.</p>
 <p>O controle de acesso é aplicado no servidor por dois mecanismos encadeados:</p>
 <ul>
 <li><code>requireAuth</code> — rejeita requisições sem token válido, garantindo que apenas usuários
-identificados acessem matrículas, progresso e dúvidas.</li>
+identificados acessem matrículas, progresso, dúvidas, chamados e certificados.</li>
 <li><code>requireAdmin</code> — além da autenticação, exige que o perfil do usuário tenha papel de
-gestão, protegendo a criação, edição e exclusão de cursos e a resposta a dúvidas.</li>
+gestão, protegendo a criação, edição e exclusão de cursos, o envio de arquivos, os
+indicadores e a resposta a dúvidas e chamados.</li>
+</ul>
+<p>Além do papel, várias regras dependem do vínculo do aluno com o curso, também
+verificado no servidor:</p>
+<ul>
+<li><strong>Conteúdo do curso por nível de acesso.</strong> Visitantes e alunos sem matrícula recebem
+apenas a grade (títulos e durações das aulas). O aluno matriculado recebe vídeos,
+materiais e as perguntas dos quizzes, mas <strong>sem o gabarito</strong>. Somente o administrador
+recebe as respostas corretas, usadas pelo editor de conteúdo.</li>
+<li><strong>Quiz corrigido no servidor.</strong> As respostas do aluno são enviadas à API, que calcula a
+nota, compara com a nota mínima e, se aprovado, registra a conclusão. Um quiz não pode
+ser marcado como concluído sem ser feito.</li>
+<li><strong>Certificado.</strong> A regra dos 60% de conclusão é conferida pela API antes de devolver os
+dados do certificado.</li>
 </ul>
 <p>A verificação é feita no servidor, e não na interface. Ocultar um botão no cliente não
 constitui controle de acesso: um usuário poderia enviar a requisição diretamente à API.</p>
@@ -452,9 +467,39 @@ constitui controle de acesso: um usuário poderia enviar a requisição diretame
 <p>O sistema utiliza duas chaves distintas de acesso ao Supabase. A chave pública é utilizada
 nas operações de autenticação em nome do usuário. A chave secreta, que ignora as regras
 de segurança em nível de linha do banco, permanece exclusivamente no ambiente do
-servidor e nunca é enviada ao navegador.</p>
+servidor e nunca é enviada ao navegador. Funções do banco que alteram dados têm a
+execução revogada para os papéis públicos e liberada apenas para o servidor.</p>
+<h3>5.3 Navegação e telas</h3>
+<p>A aplicação é organizada em quatro grandes telas, definidas pelo papel do usuário:</p>
+<pre><code class="language-text">Landing page (pública)  -&gt;  Login / Cadastro  -&gt;  Área do aluno  |  Backoffice (admin)
+</code></pre>
+<ul>
+<li><strong>Landing page:</strong> apresenta a plataforma, os recursos e os cursos em destaque.</li>
+<li><strong>Login e cadastro:</strong> inclui a recuperação de senha por e-mail.</li>
+<li><strong>Área do aluno:</strong> painel de estudos (&quot;Continue de onde parou&quot;, cursos, certificados,
+suporte e conta), catálogo, detalhes do curso, carrinho, checkout e player de aulas.</li>
+<li><strong>Backoffice:</strong> visão geral, cursos e editor de conteúdo, dúvidas, chamados e análises.</li>
+</ul>
+<p>Telas internas exigem login: um visitante que tente abri-las é direcionado ao login.
+Ao reabrir o site com uma sessão salva, o usuário vai direto para a sua área.</p>
+<h3>5.4 Armazenamento de arquivos</h3>
+<p>Vídeos (MP4/WebM, até 50 MB) e materiais de apoio (PDF, documentos, planilhas,
+apresentações, imagens e ZIP, até 20 MB) ficam em dois buckets do Supabase Storage. O
+envio não passa pela API: o administrador pede à API uma <strong>URL de envio assinada</strong>, que
+valida o tipo e o tamanho do arquivo, e o navegador envia o arquivo diretamente ao
+Storage. Isso contorna o limite de tamanho das requisições da função serverless e evita
+que a chave secreta seja necessária no navegador. Links do YouTube e do Vimeo também são
+aceitos e reproduzidos no player.</p>
+<h3>5.5 Implantação</h3>
+<p>O sistema está publicado na Vercel. O frontend é servido como site estático e a API
+Express roda como função serverless no mesmo domínio, o que dispensa configuração de
+CORS entre origens diferentes. As chaves do Supabase são cadastradas como variáveis de
+ambiente do projeto na Vercel.</p>
+<p>O desenvolvimento segue um fluxo de branches e Pull Requests: cada funcionalidade é
+desenvolvida em uma branch própria, revisada em um Pull Request e integrada à branch
+<code>main</code>. Cada integração na <code>main</code> gera automaticamente uma nova versão publicada.</p>
 <h2>6. Modelo de Dados</h2>
-<p>O banco relacional é composto por nove tabelas:</p>
+<p>O banco relacional é composto por dez tabelas:</p>
 <table>
 <thead>
 <tr>
@@ -472,7 +517,7 @@ servidor e nunca é enviada ao navegador.</p>
 </tr>
 <tr>
 <td><code>enrollments</code></td>
-<td>Vínculo entre aluno e curso adquirido</td>
+<td>Vínculo entre aluno e curso adquirido, com a última aula acessada</td>
 </tr>
 <tr>
 <td><code>course_modules</code></td>
@@ -496,12 +541,23 @@ servidor e nunca é enviada ao navegador.</p>
 </tr>
 <tr>
 <td><code>lesson_questions</code></td>
-<td>Dúvidas dos alunos e respectivas respostas</td>
+<td>Dúvidas dos alunos nas aulas e respectivas respostas</td>
+</tr>
+<tr>
+<td><code>support_tickets</code></td>
+<td>Chamados de suporte, com status e resposta da equipe</td>
 </tr>
 </tbody></table>
+<p>Complementam o modelo:</p>
+<ul>
+<li>A função <code>save_course_content</code>, que grava módulos, aulas e quizzes de um curso numa
+<strong>única transação</strong>: se algo falhar no meio, nada é alterado. Aulas existentes são
+atualizadas no lugar, preservando o progresso e as dúvidas dos alunos ligados a elas.</li>
+<li>Os buckets <code>course-videos</code> e <code>course-materials</code> do Supabase Storage (Seção 5.4).</li>
+</ul>
 <img class="figura" src="imagens/fig-20-modelo-dados.jpg" alt="Figura 20"><p class="legenda">Figura 20 - Modelo de Dados da Plataforma</p><h2>7. Interface de Programação (API REST)</h2>
-<p>A comunicação entre cliente e servidor ocorre por uma API REST. As rotas estão agrupadas
-por recurso, e a coluna &quot;Acesso&quot; indica a proteção aplicada.</p>
+<p>A comunicação entre cliente e servidor ocorre por uma API REST com 36 rotas, agrupadas
+por recurso. A coluna &quot;Acesso&quot; indica a proteção aplicada.</p>
 <table>
 <thead>
 <tr>
@@ -527,25 +583,49 @@ por recurso, e a coluna &quot;Acesso&quot; indica a proteção aplicada.</p>
 <td>POST</td>
 <td><code>/api/auth/login</code></td>
 <td>Público</td>
-<td>Autentica e devolve o token de acesso</td>
+<td>Autentica e devolve os tokens</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/refresh</code></td>
+<td>Público</td>
+<td>Renova a sessão com o token de renovação</td>
 </tr>
 <tr>
 <td>POST</td>
 <td><code>/api/auth/password-recovery</code></td>
 <td>Público</td>
-<td>Solicita a redefinição de senha</td>
+<td>Envia o e-mail de redefinição de senha</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/recovery-session</code></td>
+<td>Público</td>
+<td>Valida o link de redefinição</td>
 </tr>
 <tr>
 <td>POST</td>
 <td><code>/api/auth/update-password</code></td>
 <td>Autenticado</td>
-<td>Grava a nova senha</td>
+<td>Grava a nova senha (redefinição)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/auth/change-password</code></td>
+<td>Autenticado</td>
+<td>Troca a senha, confirmando a atual</td>
 </tr>
 <tr>
 <td>GET</td>
 <td><code>/api/students/me</code></td>
 <td>Autenticado</td>
-<td>Devolve o perfil do usuário autenticado</td>
+<td>Devolve o perfil do usuário</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/students/me</code></td>
+<td>Autenticado</td>
+<td>Atualiza o nome do usuário</td>
 </tr>
 <tr>
 <td>GET</td>
@@ -574,32 +654,56 @@ por recurso, e a coluna &quot;Acesso&quot; indica a proteção aplicada.</p>
 <tr>
 <td>GET</td>
 <td><code>/api/courses/:id/content</code></td>
-<td>Público</td>
-<td>Devolve módulos, aulas e quizzes</td>
+<td>Conforme o acesso</td>
+<td>Grade, aulas ou conteúdo completo (Seção 5.1)</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/courses/:id/content</code></td>
+<td>Gestão</td>
+<td>Salva módulos, aulas e quizzes numa transação</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/courses/:id/uploads</code></td>
+<td>Gestão</td>
+<td>Gera URL assinada para enviar vídeo ou material</td>
 </tr>
 <tr>
 <td>POST</td>
 <td><code>/api/courses/:id/modules</code></td>
 <td>Gestão</td>
-<td>Cria um módulo</td>
+<td>Cria um módulo (rota granular, não usada pela interface)</td>
 </tr>
 <tr>
 <td>POST</td>
 <td><code>/api/modules/:id/lessons</code></td>
 <td>Gestão</td>
-<td>Cria uma aula</td>
+<td>Cria uma aula (rota granular, não usada pela interface)</td>
 </tr>
 <tr>
 <td>GET</td>
 <td><code>/api/courses/:id/progress</code></td>
 <td>Autenticado</td>
-<td>Progresso do aluno no curso</td>
+<td>Aulas concluídas e aula em que o aluno deve continuar</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/courses/:id/last-lesson</code></td>
+<td>Autenticado</td>
+<td>Registra a última aula aberta pelo aluno</td>
 </tr>
 <tr>
 <td>PUT</td>
 <td><code>/api/lessons/:id/progress</code></td>
 <td>Autenticado</td>
-<td>Marca ou desmarca a conclusão</td>
+<td>Marca ou desmarca a conclusão de uma aula de vídeo</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/lessons/:id/quiz-attempt</code></td>
+<td>Autenticado</td>
+<td>Corrige o quiz no servidor</td>
 </tr>
 <tr>
 <td>GET</td>
@@ -620,6 +724,12 @@ por recurso, e a coluna &quot;Acesso&quot; indica a proteção aplicada.</p>
 <td>Responde a uma dúvida</td>
 </tr>
 <tr>
+<td>GET</td>
+<td><code>/api/admin/lesson-questions</code></td>
+<td>Gestão</td>
+<td>Lista as dúvidas de todos os cursos</td>
+</tr>
+<tr>
 <td>POST</td>
 <td><code>/api/enrollments</code></td>
 <td>Autenticado</td>
@@ -629,7 +739,43 @@ por recurso, e a coluna &quot;Acesso&quot; indica a proteção aplicada.</p>
 <td>GET</td>
 <td><code>/api/enrollments/me</code></td>
 <td>Autenticado</td>
-<td>Lista os cursos do aluno</td>
+<td>Cursos do aluno com progresso e próxima aula</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/enrollments/:courseId/certificate</code></td>
+<td>Autenticado</td>
+<td>Dados do certificado (a partir de 60%)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/support-tickets</code></td>
+<td>Autenticado</td>
+<td>Abre um chamado</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/support-tickets/me</code></td>
+<td>Autenticado</td>
+<td>Lista os chamados do aluno</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/support-tickets/:id/close</code></td>
+<td>Autenticado</td>
+<td>O aluno encerra o próprio chamado</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/admin/support-tickets</code></td>
+<td>Gestão</td>
+<td>Lista todos os chamados</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/admin/support-tickets/:id</code></td>
+<td>Gestão</td>
+<td>Responde ou encerra um chamado</td>
 </tr>
 <tr>
 <td>GET</td>
@@ -645,13 +791,15 @@ descreva o sistema tal como ele é, e não como se pretendia que fosse: um requi
 levantado e não implementado continua sendo um requisito válido do projeto, desde que
 sua ausência esteja registrada de forma explícita.</p>
 <h3>8.1 Delimitação</h3>
-<p><strong>Está dentro do escopo:</strong> a plataforma web de ensino, composta pela interface do aluno,
-pelo backoffice de gestão de catálogo e conteúdo, pela API REST que concentra as regras
-de negócio e pelo banco de dados relacional que sustenta os dois.</p>
+<p><strong>Está dentro do escopo:</strong> a plataforma web de ensino, composta pela landing page, pela
+área do aluno, pelo backoffice de gestão de catálogo e conteúdo, pela API REST que
+concentra as regras de negócio, pelo banco de dados relacional e pelo armazenamento de
+vídeos e materiais.</p>
 <p><strong>Está fora do escopo:</strong> o módulo de gestão interna presencial mencionado na Seção 1
-(administração de turmas, matrículas presenciais e modalidade híbrida), a integração com
-meios de pagamento, o armazenamento próprio de arquivos de vídeo e o envio de mensagens
-por e-mail.</p>
+(administração de turmas, matrículas presenciais e modalidade híbrida), a cobrança real
+por um meio de pagamento (o checkout é demonstrativo, Seção 8.5) e o envio de
+notificações por e-mail. O único e-mail enviado é o de redefinição de senha, pelo
+serviço de autenticação.</p>
 <h3>8.2 Classificação adotada</h3>
 <p>Cada requisito é classificado em uma de três situações:</p>
 <table>
@@ -667,11 +815,11 @@ por e-mail.</p>
 </tr>
 <tr>
 <td><strong>Parcial</strong></td>
-<td>Funciona na interface, mas o resultado não é gravado no banco. Ao recarregar a página, a informação é perdida.</td>
+<td>Funciona, mas sem atender a todos os critérios de aceitação da HU. A observação indica o que falta.</td>
 </tr>
 <tr>
 <td><strong>Não implementado</strong></td>
-<td>Existe apenas o elemento de interface, sem regra de negócio associada.</td>
+<td>O requisito não está disponível ao usuário.</td>
 </tr>
 </tbody></table>
 <h3>8.3 Requisitos funcionais</h3>
@@ -683,6 +831,7 @@ por e-mail.</p>
 <th>Requisito</th>
 <th>HU</th>
 <th>Situação</th>
+<th>Observação</th>
 </tr>
 </thead>
 <tbody><tr>
@@ -690,114 +839,133 @@ por e-mail.</p>
 <td>Cadastrar-se com nome, e-mail e senha</td>
 <td>4.1.1</td>
 <td>Implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF02</td>
 <td>Autenticar-se e manter a sessão ativa</td>
 <td>4.1.1</td>
 <td>Implementado</td>
+<td>Sessão renovada automaticamente</td>
 </tr>
 <tr>
 <td>RF03</td>
 <td>Solicitar e concluir a redefinição de senha</td>
 <td>4.1.1</td>
 <td>Implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF04</td>
 <td>Consultar o catálogo de cursos</td>
 <td>4.1.2</td>
 <td>Implementado</td>
+<td>Catálogo completo na área do aluno; destaques na landing</td>
 </tr>
 <tr>
 <td>RF05</td>
-<td>Buscar cursos por título ou instrutor, com autocomplete</td>
+<td>Buscar cursos por título ou instrutor</td>
 <td>4.1.2</td>
 <td>Implementado</td>
+<td>Resultados atualizados a cada tecla digitada</td>
 </tr>
 <tr>
 <td>RF06</td>
 <td>Filtrar por nível, faixa de preço e avaliação</td>
 <td>4.1.3</td>
 <td>Implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF07</td>
 <td>Visualizar os detalhes e a grade curricular de um curso</td>
 <td>4.1.4</td>
-<td>Implementado</td>
+<td>Parcial</td>
+<td>Sem vídeo de apresentação; descrição gerada da grade</td>
 </tr>
 <tr>
 <td>RF08</td>
 <td>Adicionar e remover cursos do carrinho</td>
 <td>4.1.5</td>
 <td>Implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF09</td>
 <td>Aplicar cupom de desconto</td>
 <td>4.1.5</td>
 <td>Não implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF10</td>
 <td>Matricular-se, sem duplicar matrícula existente</td>
 <td>4.1.5</td>
 <td>Implementado</td>
+<td>Checkout demonstrativo com cartão ou Pix</td>
 </tr>
 <tr>
 <td>RF11</td>
 <td>Consultar os cursos adquiridos</td>
 <td>4.1.5</td>
 <td>Implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF12</td>
 <td>Assistir às aulas e acessar o material de apoio</td>
 <td>4.1.6</td>
 <td>Implementado</td>
+<td>Vídeo enviado, YouTube ou Vimeo</td>
 </tr>
 <tr>
 <td>RF13</td>
 <td>Marcar e desmarcar a conclusão de uma aula</td>
 <td>4.1.6</td>
 <td>Implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF14</td>
 <td>Ter os módulos liberados conforme a progressão</td>
 <td>4.1.6</td>
 <td>Implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF15</td>
 <td>Responder quizzes e receber a nota imediatamente</td>
 <td>4.1.7</td>
 <td>Implementado</td>
+<td>Correção feita no servidor</td>
 </tr>
 <tr>
 <td>RF16</td>
 <td>Emitir certificado de conclusão em PDF</td>
 <td>4.1.8</td>
-<td>Não implementado</td>
+<td>Implementado</td>
+<td>Liberado a partir de 60%; nome, carga horária, data e código</td>
 </tr>
 <tr>
 <td>RF17</td>
 <td>Enviar dúvidas em uma aula</td>
 <td>4.1.9</td>
-<td>Não implementado</td>
+<td>Parcial</td>
+<td>Sem notificação quando a dúvida é respondida</td>
 </tr>
 <tr>
 <td>RF18</td>
 <td>Avaliar o curso com nota e comentário</td>
 <td>4.1.10</td>
 <td>Não implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF19</td>
 <td>Abrir e acompanhar tickets de suporte</td>
 <td>4.1.11</td>
-<td>Não implementado</td>
+<td>Implementado</td>
+<td>Status Aberto, Respondido e Encerrado</td>
 </tr>
 </tbody></table>
 <p><strong>Ator Professor / Instrutor</strong></p>
@@ -808,55 +976,64 @@ por e-mail.</p>
 <th>Requisito</th>
 <th>HU</th>
 <th>Situação</th>
+<th>Observação</th>
 </tr>
 </thead>
 <tbody><tr>
 <td>RF20</td>
 <td>Criar um curso com título, descrição, preço e nível</td>
 <td>4.1.12</td>
-<td>Implementado</td>
+<td>Parcial</td>
+<td>A descrição é gerada a partir da grade</td>
 </tr>
 <tr>
 <td>RF21</td>
 <td>Criar e organizar módulos de um curso</td>
 <td>4.1.13</td>
-<td>Parcial</td>
+<td>Implementado</td>
+<td>Renomear, reordenar e excluir; gravação em transação</td>
 </tr>
 <tr>
 <td>RF22</td>
 <td>Criar aulas, definindo tipo, duração e materiais</td>
 <td>4.1.14</td>
-<td>Parcial</td>
+<td>Implementado</td>
+<td>Envio de vídeos e materiais pelo computador</td>
 </tr>
 <tr>
 <td>RF23</td>
 <td>Cadastrar quizzes com perguntas e nota mínima</td>
 <td>4.1.14</td>
-<td>Parcial</td>
+<td>Implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF24</td>
 <td>Definir e alterar o preço de um curso</td>
 <td>4.1.15</td>
-<td>Implementado</td>
+<td>Parcial</td>
+<td>Sem preço promocional</td>
 </tr>
 <tr>
 <td>RF25</td>
 <td>Responder às dúvidas enviadas pelos alunos</td>
 <td>4.1.16</td>
-<td>Não implementado</td>
+<td>Implementado</td>
+<td>Painel de dúvidas pendentes no backoffice</td>
 </tr>
 <tr>
 <td>RF26</td>
 <td>Editar e excluir cursos do catálogo</td>
 <td>4.1.17</td>
 <td>Implementado</td>
+<td></td>
 </tr>
 <tr>
 <td>RF27</td>
 <td>Consultar indicadores consolidados do catálogo</td>
 <td>4.1.18</td>
-<td>Implementado</td>
+<td>Parcial</td>
+<td>Sem gráfico de inscrições ao longo do tempo</td>
 </tr>
 </tbody></table>
 <p><strong>Requisitos transversais</strong></p>
@@ -875,7 +1052,17 @@ por e-mail.</p>
 </tr>
 <tr>
 <td>RF29</td>
-<td>Restringir matrícula, progresso e dúvidas a usuários autenticados</td>
+<td>Restringir matrícula, progresso, dúvidas e conteúdo das aulas a usuários com acesso ao curso</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF30</td>
+<td>Retomar o curso a partir da última aula acessada (&quot;Continue de onde parou&quot;)</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF31</td>
+<td>Permitir ao aluno atualizar o nome e trocar a senha</td>
 <td>Implementado</td>
 </tr>
 </tbody></table>
@@ -897,7 +1084,7 @@ por e-mail.</p>
 </tr>
 <tr>
 <td>RNF03</td>
-<td>A API aceita requisições apenas da origem configurada em <code>CLIENT_ORIGIN</code>.</td>
+<td>A API aceita requisições apenas da origem configurada (o próprio domínio em produção).</td>
 </tr>
 <tr>
 <td>RNF04</td>
@@ -909,7 +1096,7 @@ por e-mail.</p>
 </tr>
 <tr>
 <td>RNF06</td>
-<td>A interface é responsiva, adaptando-se a telas de 520 a 1920 pixels de largura.</td>
+<td>A interface é responsiva, adaptando-se do celular ao computador.</td>
 </tr>
 <tr>
 <td>RNF07</td>
@@ -919,83 +1106,55 @@ por e-mail.</p>
 <td>RNF08</td>
 <td>As camadas de apresentação, aplicação e dados são independentes, comunicando-se apenas por HTTP.</td>
 </tr>
-</tbody></table>
-<h3>8.5 Estado da migração para a arquitetura cliente-servidor</h3>
-<p>O sistema passou por uma migração do protótipo em memória para a arquitetura
-cliente-servidor descrita na Seção 5. Essa migração está concluída para os fluxos de
-autenticação, catálogo, matrícula e progresso de aprendizagem, e permanece pendente para
-a autoria de conteúdo e para a área de dúvidas.</p>
-<p>Das 21 rotas implementadas na API, <strong>15 são efetivamente consumidas</strong> pela interface.
-Além de <code>GET /api/health</code>, destinada a diagnóstico, as 5 rotas restantes estão
-construídas e protegidas no servidor, mas a interface ainda opera sobre estado em
-memória para as funcionalidades correspondentes:</p>
-<table>
-<thead>
 <tr>
-<th>Rota disponível na API</th>
-<th>Funcionalidade</th>
-<th>Comportamento atual da interface</th>
-</tr>
-</thead>
-<tbody><tr>
-<td><code>POST /api/courses/:id/modules</code></td>
-<td>Criar módulo</td>
-<td>Grava apenas em memória</td>
+<td>RNF09</td>
+<td>Operações que alteram várias tabelas ao mesmo tempo (conteúdo do curso) são atômicas.</td>
 </tr>
 <tr>
-<td><code>POST /api/modules/:id/lessons</code></td>
-<td>Criar aula</td>
-<td>Grava apenas em memória</td>
+<td>RNF10</td>
+<td>O gabarito dos quizzes nunca é enviado ao navegador do aluno.</td>
 </tr>
 <tr>
-<td><code>GET /api/lessons/:id/questions</code></td>
-<td>Listar dúvidas</td>
-<td>Não é chamada</td>
-</tr>
-<tr>
-<td><code>POST /api/lessons/:id/questions</code></td>
-<td>Enviar dúvida</td>
-<td>Não é chamada</td>
-</tr>
-<tr>
-<td><code>PATCH /api/questions/:id/answer</code></td>
-<td>Responder dúvida</td>
-<td>Não é chamada</td>
+<td>RNF11</td>
+<td>Arquivos enviados são validados quanto ao tipo e ao tamanho antes do envio.</td>
 </tr>
 </tbody></table>
-<p>Essa é a razão pela qual os requisitos RF21, RF22 e RF23 constam como <em>Parciais</em>: o
-professor consegue montar módulos e aulas, e o resultado é exibido corretamente durante
-a sessão, mas a estrutura não sobrevive ao recarregamento da página. Do ponto de vista de
-engenharia, o trabalho restante é de integração, não de concepção: o modelo de dados, as
-rotas e as regras de acesso já existem.</p>
-<p>Os requisitos RF17 e RF25, relativos à área de dúvidas, constam como <em>Não implementados</em>
-por um motivo distinto: além de a interface não chamar as rotas, o fluxo não está
-disponível ao usuário. O envio de perguntas pelo aluno está associado a um manipulador
-vazio, e a aba de respostas foi retirada do painel de gestão.</p>
-<h4>Registro de progresso</h4>
-<p>O progresso de aprendizagem foi integrado à API e é o exemplo de referência do padrão
-adotado na migração. Ao abrir o player, a aplicação consulta
-<code>GET /api/courses/:id/progress</code> e reconstrói o conjunto de aulas concluídas do aluno. A
-cada conclusão marcada ou desfeita, <code>PUT /api/lessons/:id/progress</code> grava a alteração.</p>
-<p>Duas decisões de projeto merecem registro:</p>
+<h3>8.5 Decisões de projeto</h3>
+<p>A migração do protótipo em memória para a arquitetura cliente-servidor foi concluída:
+todas as funcionalidades da interface leem e gravam pela API. As decisões abaixo
+registram como alguns fluxos foram resolvidos.</p>
 <ul>
+<li><strong>Conteúdo do curso salvo de uma vez, em transação.</strong> O editor permite várias
+alterações (criar, renomear, reordenar e excluir módulos e aulas) e as envia juntas.
+A função <code>save_course_content</code> grava tudo numa transação e atualiza as aulas
+existentes no lugar, para não apagar o progresso e as dúvidas dos alunos.</li>
 <li><strong>Apenas a conclusão de aulas é persistida.</strong> Os módulos liberados são derivados do
 conjunto de aulas concluídas, e não gravados: armazená-los criaria um segundo estado
-capaz de divergir do primeiro. A liberação é recalculada a cada carregamento.</li>
-<li><strong>A gravação é otimista, com reversão.</strong> A interface marca a aula imediatamente e
-desfaz a marca caso a API responda com erro, evitando exibir ao aluno um progresso que
-o banco não registrou.</li>
+capaz de divergir do primeiro.</li>
+<li><strong>A gravação do progresso é otimista, com reversão.</strong> A interface marca a aula
+imediatamente e desfaz a marca caso a API responda com erro.</li>
+<li><strong>&quot;Continue de onde parou&quot; baseado em acesso, não só em conclusão.</strong> A matrícula
+guarda a última aula aberta. A próxima aula sugerida é essa aula, se ainda não
+concluída, ou a seguinte não concluída; nunca uma aula de módulo bloqueado. O painel e
+o player usam o mesmo cálculo, feito pela API.</li>
+<li><strong>Envio de arquivos direto ao armazenamento.</strong> A API apenas autoriza o envio (URL
+assinada); o arquivo não trafega pela função serverless.</li>
+<li><strong>Certificado gerado no navegador, autorizado no servidor.</strong> A API confere a regra de
+liberação e devolve os dados; o PDF é montado no navegador, sem custo de
+processamento no servidor.</li>
+<li><strong>Checkout demonstrativo.</strong> O pagamento por cartão ou Pix é simulado: os dados do
+cartão são validados no navegador (incluindo o dígito verificador) e não são enviados
+nem armazenados. A confirmação apenas efetiva as matrículas.</li>
 </ul>
 <h3>8.6 Trabalhos futuros</h3>
-<p>Em ordem de dependência técnica:</p>
 <ol>
-<li>Ligar o editor de conteúdo às rotas de módulos e aulas, consolidando RF21, RF22 e
-RF23. O padrão de integração a seguir é o já adotado no registro de progresso,
-descrito na Seção 8.5.</li>
-<li>Restabelecer o fluxo da área de dúvidas nas duas pontas, atendendo a RF17 e RF25.</li>
-<li>Implementar a persistência de avaliações e a emissão do certificado em PDF.</li>
-<li>Integrar um meio de pagamento e a regra de cupons, atendendo a RF09.</li>
-<li>Implementar o armazenamento de arquivos de vídeo e materiais.</li>
+<li>Integrar um gateway de pagamento real e a regra de cupons (RF09).</li>
+<li>Implementar a avaliação de cursos com nota e comentário (RF18), substituindo as notas
+de demonstração do catálogo.</li>
+<li>Notificar o aluno quando sua dúvida ou chamado for respondido.</li>
+<li>Armazenar a descrição e o vídeo de apresentação do curso (RF07 e RF20) e o preço
+promocional (RF24).</li>
+<li>Exibir a evolução das inscrições ao longo do tempo no painel de análises (RF27).</li>
 </ol>
 <h2>9. REFERÊNCIAS</h2>
 <p>LONGO, Hugo José; SILVA, Paulo Cesar da. <strong>A utilização de histórias de usuários no

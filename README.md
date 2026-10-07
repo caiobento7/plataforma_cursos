@@ -1,57 +1,80 @@
 # CursoLab
 
 Plataforma de cursos online desenvolvida para a disciplina de Princípios de
-Engenharia de Software. O projeto possui uma interface React e uma API REST
-própria, conectada a um banco PostgreSQL hospedado no Supabase.
+Engenharia de Software. Alunos compram cursos, assistem às aulas, fazem quizzes,
+tiram dúvidas e emitem certificados; administradores criam e organizam o conteúdo,
+respondem aos alunos e acompanham os indicadores.
+
+**Em produção:** https://plataforma-cursos-omega.vercel.app
 
 ## Arquitetura
 
 ```text
-React + Vite (frontend) -> Express (API REST) -> Supabase PostgreSQL + Auth
+React + Vite   ->   API REST (Express)   ->   Supabase (PostgreSQL + Auth + Storage)
+  (cliente)         (regras de negócio)          (dados, login e arquivos)
 ```
 
-O Express concentra as regras de negócio e acessa o Supabase por uma chave
-secreta mantida apenas no ambiente do servidor. O frontend nunca acessa essa
-chave ou o banco diretamente.
+- O frontend nunca acessa o banco: toda leitura e gravação passa pela API.
+- A API é a única camada com a chave secreta do Supabase e aplica o controle de
+  acesso no servidor (`requireAuth` e `requireAdmin`).
+- Na Vercel, o frontend é publicado como site estático e a API roda como função
+  serverless no mesmo domínio (`api/index.js` reaproveita o app Express).
+
+## Funcionalidades
+
+**Visitante:** landing page com a apresentação da plataforma e os cursos em destaque.
+
+**Aluno**
+- Cadastro, login, sessão renovada automaticamente e recuperação de senha por e-mail.
+- Catálogo com busca e filtros, página de detalhes com a grade do curso.
+- Carrinho e checkout demonstrativo (cartão ou Pix; nenhum valor é cobrado).
+- Player com vídeo (arquivo enviado, YouTube ou Vimeo), material de apoio, quizzes
+  corrigidos no servidor e módulos liberados conforme a progressão.
+- "Continue de onde parou": retoma o curso na última aula acessada.
+- Dúvidas em cada aula, respondidas pelo instrutor.
+- Certificado em PDF, liberado ao concluir 60% das aulas.
+- Chamados de suporte, edição do nome e troca de senha.
+
+**Administrador**
+- Backoffice com indicadores, pendências e análise por curso.
+- Criação e edição de cursos; editor de módulos, aulas e quizzes salvo numa transação.
+- Envio de vídeos e materiais direto para o Supabase Storage.
+- Resposta às dúvidas das aulas e aos chamados de suporte.
 
 ## Tecnologias
 
-- React 19 e Vite 7
-- Node.js e Express 5
-- Supabase Auth e PostgreSQL
-- ESLint 9 e CSS puro
-
-## Funcionalidades do backend
-
-- Cadastro e login de alunos por e-mail e senha.
-- Perfis com papéis `student` e `admin`.
-- Backoffice administrativo protegido: o administrador pode criar, editar e
-  excluir qualquer curso cadastrado.
-- Matrículas vinculando aluno e curso.
-- Módulos, aulas em vídeo e quizzes com perguntas e nota mínima.
-- Registro de progresso por aula para cada aluno matriculado.
-- Área de dúvidas, com envio pelo aluno e resposta pelo administrador.
+- React 19, Vite 7 e CSS próprio (`src/styles/ui.css`, fonte Inter)
+- Node.js 20+ e Express 5
+- Supabase: PostgreSQL, Auth e Storage
+- jsPDF para o certificado
+- ESLint 9
 
 ## Como executar
 
-Pré-requisito: Node.js 20 ou superior e um projeto Supabase configurado.
+Pré-requisitos: Node.js 20 ou superior e um projeto no Supabase.
 
 ### 1. Banco de dados
 
 No SQL Editor do Supabase, execute nesta ordem:
 
-1. `backend/database/schema.sql`
-2. `backend/database/002_learning_content.sql`
-3. `backend/database/seed.sql` (cursos iniciais)
-4. `backend/database/005_demo_course_metrics.sql` (indicadores do backoffice)
-5. `backend/database/006_demo_learning_content.sql` (conteúdo demonstrativo dos cursos)
-6. `backend/database/007_demo_remaining_course_content.sql` (conteúdo dos cursos restantes)
-7. `backend/database/008_support_tickets.sql` (chamados entre alunos e administradores)
+| Arquivo | O que faz |
+|---|---|
+| `backend/database/schema.sql` | Perfis, cursos e matrículas |
+| `backend/database/002_learning_content.sql` | Módulos, aulas, quizzes, progresso e dúvidas |
+| `backend/database/seed.sql` | Cursos iniciais |
+| `backend/database/005_demo_course_metrics.sql` | Indicadores de demonstração |
+| `backend/database/006_demo_learning_content.sql` | Conteúdo de demonstração |
+| `backend/database/007_demo_remaining_course_content.sql` | Conteúdo dos demais cursos |
+| `backend/database/008_support_tickets.sql` | Chamados de suporte |
+| `backend/database/009_save_course_content.sql` | Função que salva o conteúdo numa transação |
+| `backend/database/010_course_materials_storage.sql` | Bucket de materiais de apoio |
+| `backend/database/011_course_videos_storage.sql` | Bucket de vídeos |
+| `backend/database/012_enrollment_last_access.sql` | Última aula acessada em cada matrícula |
 
-Em um banco que já possuía o papel `teacher`, execute também
-`backend/database/003_admin_role.sql` para convertê-lo em `admin`.
+Em um banco que já possuía o papel `teacher`, execute também `003_admin_role.sql`.
+Para promover uma conta a administrador, use `004_demo_admin.sql` como modelo.
 
-### 2. Configurar o backend
+### 2. Variáveis de ambiente
 
 Crie `backend/.env` a partir de `backend/.env.example`:
 
@@ -60,63 +83,66 @@ PORT=3001
 CLIENT_ORIGIN=http://localhost:5173
 SUPABASE_URL=https://seu-project-ref.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_sua_chave_publica
-SUPABASE_SECRET_KEY=sb_secret_sua_chave_secreta
+SUPABASE_SECRET_KEY=sua_chave_secreta
 ```
 
-Nunca versione ou exponha a chave secreta.
+Nunca versione nem exponha a chave secreta.
 
-### 3. Iniciar os serviços
-
-Na raiz do projeto:
+### 3. Iniciar
 
 ```bash
 npm install
-npm run server    # API: http://localhost:3001
-npm run dev       # frontend: http://localhost:5173
+npm run server    # API em http://localhost:3001
+npm run dev       # interface em http://localhost:5173
 ```
 
-Frontend e API usam o mesmo `package.json` da raiz. Em desenvolvimento, o Vite
-encaminha as chamadas para `/api` ao Express em `localhost:3001`, então o
-frontend usa os mesmos caminhos relativos que em produção.
+Em desenvolvimento, o Vite encaminha `/api` para o Express, então o frontend usa os
+mesmos caminhos relativos que em produção. `GET /api/health` confirma que a API está no
+ar. A referência das rotas está em [`backend/README.md`](backend/README.md).
 
-O endpoint `GET /api/health` confirma que o servidor está ativo. A referência
-completa das rotas está em [`backend/README.md`](backend/README.md).
+## Testes
+
+Os testes de integração ficam em `backend/tests/` e cobrem conteúdo, envio de arquivos,
+chamados, painel do aluno, retomada de curso, dúvidas e a segurança do quiz (mais de
+120 verificações). Eles chamam a API de verdade, criam usuários e cursos temporários e
+apagam tudo ao final.
+
+```bash
+npm run server                                        # em outro terminal
+npm run test:api                                      # API local
+npm run test:api -- https://seu-projeto.vercel.app    # API publicada
+```
+
+Também rode `npm run lint` e `npm run build` antes de abrir um Pull Request.
 
 ## Deploy na Vercel
-
-Frontend e API são publicados juntos, num único projeto da Vercel:
-
-- O build do Vite gera o site estático em `dist/`.
-- `api/index.js` exporta o mesmo app Express como função serverless, e o
-  `vercel.json` encaminha todas as rotas `/api/*` para ela.
-
-Passos:
 
 1. Importe o repositório na Vercel (o framework Vite é detectado sozinho).
 2. Em **Settings → Environment Variables**, cadastre `SUPABASE_URL`,
    `SUPABASE_PUBLISHABLE_KEY` e `SUPABASE_SECRET_KEY`.
-3. No Supabase, em **Authentication → URL Configuration**, adicione a URL de
-   produção (ex.: `https://seu-projeto.vercel.app/**`) às Redirect URLs, para
-   o link de recuperação de senha funcionar.
+3. No Supabase, em **Authentication → URL Configuration**, defina a URL do site e
+   adicione `https://seu-projeto.vercel.app/**` às Redirect URLs (recuperação de senha).
 
-Cada push na branch `main` gera um novo deploy de produção.
+Cada merge na branch `main` publica uma nova versão automaticamente.
+
+## Fluxo de desenvolvimento
+
+Cada funcionalidade é feita em uma branch própria, com commits descritivos, e integrada
+à `main` por Pull Request, após lint, build e testes.
 
 ## Estrutura
 
 ```text
-api/              # função serverless da Vercel (reaproveita o app Express)
+api/                  # função serverless da Vercel (reaproveita o app Express)
 backend/
-  database/       # scripts SQL de schema, migração e carga inicial
-  src/            # API Express, autenticação e regras de acesso
+  database/           # scripts SQL de schema, migrações e dados de demonstração
+  src/                # API Express, autenticação e regras de acesso
+  tests/              # testes de integração da API
+docs/                 # documentação de requisitos e fluxogramas
 src/
-  components/     # componentes React
-  pages/          # telas do sistema
-  data/           # dados temporários do frontend durante a migração
+  components/         # componentes React reutilizáveis
+  pages/              # telas (landing, login, catálogo, player, painéis...)
+  services/api.js     # cliente HTTP da API
+  styles/ui.css       # linguagem visual
+  utils/              # progresso, certificado em PDF, chamados
 ```
-
-## Estado atual
-
-O backend e o banco foram validados isoladamente com cadastro, login, perfil,
-CRUD de cursos, matrícula, conteúdo, quiz, progresso e dúvidas. A próxima fase
-é substituir gradualmente os dados temporários e o `localStorage` do React por
-chamadas à API REST.
