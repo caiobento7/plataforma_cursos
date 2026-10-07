@@ -96,10 +96,10 @@ const App = () => {
   // não são persistidos: são derivados desse conjunto pelo LessonPlayerPage.
   const loadCourseProgress = useCallback(async (courseId) => {
     try {
-      const { completedLessonIds } = await api.getCourseProgress(courseId);
+      const { completedLessonIds, nextLessonId } = await api.getCourseProgress(courseId);
       setCourseProgress((previous) => ({
         ...previous,
-        [courseId]: { completed: new Set(completedLessonIds) },
+        [courseId]: { completed: new Set(completedLessonIds), nextLessonId },
       }));
     } catch {
       // Visitante ou aluno sem matrícula no curso: a API responde 403 e a
@@ -148,7 +148,12 @@ const App = () => {
     if (['details', 'player', 'courseEditor', 'editCourseMetadata'].includes(page)) {
       setSelectedCourseId(data);
       loadCourseContent(data);
-      if (page === 'player') loadCourseProgress(data);
+      if (page === 'player') {
+        // Descarta o progresso de uma visita anterior: o player só se posiciona
+        // quando chega a aula atualizada em que o aluno deve continuar.
+        setCourseProgress((previous) => ({ ...previous, [data]: undefined }));
+        loadCourseProgress(data);
+      }
     }
     if (page === 'login') {
       setPendingCheckoutCourseId(Number.isInteger(data?.checkoutCourseId) ? data.checkoutCourseId : null);

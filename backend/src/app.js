@@ -1044,28 +1044,17 @@ app.get('/api/courses/:courseId/progress', requireAuth, async (request, response
     return response.status(403).json({ error: 'Você não possui acesso a este curso.' });
   }
 
-  const { data: modules, error: modulesError } = await supabaseAdmin
-    .from('course_modules')
-    .select('id')
-    .eq('course_id', courseId);
-  if (modulesError) return response.status(500).json({ error: 'Não foi possível carregar o progresso.' });
-  if (modules.length === 0) return response.json({ completedLessonIds: [] });
+  // Mesmo cálculo do painel do aluno, para o player abrir na aula indicada
+  // em "Continue de onde parou".
+  const lastAccess = await getLastAccess(request.user.id, [courseId]);
+  const progress = await getCoursesProgress(request.user.id, [courseId], lastAccess);
+  if (!progress) return response.status(500).json({ error: 'Não foi possível carregar o progresso.' });
 
-  const { data: lessons, error: lessonsError } = await supabaseAdmin
-    .from('lessons')
-    .select('id')
-    .in('module_id', modules.map((module) => module.id));
-  if (lessonsError || lessons.length === 0) return response.json({ completedLessonIds: [] });
-
-  const { data, error } = await supabaseAdmin
-    .from('lesson_progress')
-    .select('lesson_id')
-    .eq('student_id', request.user.id)
-    .eq('completed', true)
-    .in('lesson_id', lessons.map((lesson) => lesson.id));
-
-  if (error) return response.status(500).json({ error: 'Não foi possível carregar o progresso.' });
-  return response.json({ completedLessonIds: data.map((progress) => progress.lesson_id) });
+  const summary = progress.get(courseId);
+  return response.json({
+    completedLessonIds: summary.completedLessonIds,
+    nextLessonId: summary.nextLesson?.id || null,
+  });
 });
 
 app.put('/api/lessons/:lessonId/progress', requireAuth, async (request, response) => {
@@ -1223,22 +1212,69 @@ const parseDurationMinutes = (duration) => {
   return Number(text.match(/\d+/)?.[0] || 0);
 };
 
+// Um módulo está concluído quando todos os quizzes dele foram aprovados; sem
+// quiz, quando todas as aulas de vídeo foram concluídas. Mesma regra do player.
+const isModuleComplete = (moduleLessons, completedIds) => {
+  const quizzes = moduleLessons.filter((lesson) => lesson.content_type === 'quiz');
+  const required = quizzes.length > 0 ? quizzes : moduleLessons.filter((lesson) => lesson.content_type === 'video');
+  return required.every((lesson) => completedIds.has(lesson.id));
+};
+
+// Decide a aula em que o aluno deve continuar:
+// - a última aula aberta, se ainda não foi concluída (parou no meio);
+// - se foi concluída, a próxima não concluída depois dela;
+// - sem acesso registrado, a primeira não concluída.
+// Aulas de módulos bloqueados nunca são sugeridas: nesse caso vale a primeira
+// pendente dos módulos liberados, que é o que libera o próximo módulo.
+const findNextLesson = (courseModules, lessonsByModule, completedIds, lastLessonId) => {
+  const ordered = courseModules.flatMap((module, moduleIndex) => (lessonsByModule.get(module.id) || [])
+    .map((lesson, lessonIndex) => ({ lesson, moduleIndex, lessonIndex })));
+
+  const unlocked = new Set([0]);
+  for (let index = 1; index < courseModules.length; index += 1) {
+    const previous = lessonsByModule.get(courseModules[index - 1].id) || [];
+    if (!unlocked.has(index - 1) || !isModuleComplete(previous, completedIds)) break;
+    unlocked.add(index);
+  }
+
+  const isPending = (entry) => !completedIds.has(entry.lesson.id);
+  const firstPending = ordered.find((entry) => unlocked.has(entry.moduleIndex) && isPending(entry));
+
+  let candidate;
+  const lastIndex = ordered.findIndex((entry) => entry.lesson.id === lastLessonId);
+  if (lastIndex >= 0) {
+    candidate = isPending(ordered[lastIndex]) ? ordered[lastIndex] : ordered.slice(lastIndex + 1).find(isPending);
+  }
+  if (!candidate || !unlocked.has(candidate.moduleIndex)) candidate = firstPending;
+  if (!candidate) return null;
+
+  return {
+    id: candidate.lesson.id,
+    title: candidate.lesson.title,
+    moduleNumber: candidate.moduleIndex + 1,
+    lessonNumber: candidate.lessonIndex + 1,
+  };
+};
+
 // Calcula o progresso do aluno em cada curso: aulas concluídas sobre o total de
-// aulas (vídeos e quizzes). Devolve um Map courseId -> resumo, ou null se a
-// consulta falhar.
-const getCoursesProgress = async (studentId, courseIds) => {
+// aulas (vídeos e quizzes) e a aula em que ele deve continuar. lastAccessByCourse
+// traz a última aula aberta em cada curso (courseId -> { lessonId, accessedAt }).
+// Devolve um Map courseId -> resumo, ou null se a consulta falhar.
+const getCoursesProgress = async (studentId, courseIds, lastAccessByCourse = new Map()) => {
   const summary = new Map(courseIds.map((courseId) => [courseId, {
     completedLessons: 0,
     totalLessons: 0,
     totalMinutes: 0,
     lastCompletedAt: null,
+    lastAccessedAt: lastAccessByCourse.get(courseId)?.accessedAt || null,
+    completedLessonIds: [],
     nextLesson: null,
   }]));
   if (courseIds.length === 0) return summary;
 
   const { data: modules, error: modulesError } = await supabaseAdmin
     .from('course_modules')
-    .select('id, course_id, title, sort_order')
+    .select('id, course_id, sort_order')
     .in('course_id', courseIds);
   if (modulesError) return null;
   if (modules.length === 0) return summary;
@@ -1246,7 +1282,7 @@ const getCoursesProgress = async (studentId, courseIds) => {
   const courseByModule = new Map(modules.map((module) => [module.id, module.course_id]));
   const { data: lessons, error: lessonsError } = await supabaseAdmin
     .from('lessons')
-    .select('id, module_id, title, duration, sort_order')
+    .select('id, module_id, title, duration, content_type, sort_order')
     .in('module_id', modules.map((module) => module.id));
   if (lessonsError) return null;
   if (lessons.length === 0) return summary;
@@ -1273,27 +1309,28 @@ const getCoursesProgress = async (studentId, courseIds) => {
     completedIds.add(item.lesson_id);
     const course = summary.get(courseByLesson.get(item.lesson_id));
     course.completedLessons += 1;
+    course.completedLessonIds.push(item.lesson_id);
     if (item.completed_at && (!course.lastCompletedAt || item.completed_at > course.lastCompletedAt)) {
       course.lastCompletedAt = item.completed_at;
     }
   });
 
-  // Próxima aula: a primeira não concluída, na ordem dos módulos e das aulas.
   const bySortOrder = (a, b) => a.sort_order - b.sort_order;
+  const lessonsByModule = new Map();
+  [...lessons].sort(bySortOrder).forEach((lesson) => {
+    const list = lessonsByModule.get(lesson.module_id) || [];
+    list.push(lesson);
+    lessonsByModule.set(lesson.module_id, list);
+  });
+
   courseIds.forEach((courseId) => {
     const courseModules = modules.filter((module) => module.course_id === courseId).sort(bySortOrder);
-    for (const [moduleIndex, module] of courseModules.entries()) {
-      const moduleLessons = lessons.filter((lesson) => lesson.module_id === module.id).sort(bySortOrder);
-      const lessonIndex = moduleLessons.findIndex((lesson) => !completedIds.has(lesson.id));
-      if (lessonIndex >= 0) {
-        summary.get(courseId).nextLesson = {
-          title: moduleLessons[lessonIndex].title,
-          moduleNumber: moduleIndex + 1,
-          lessonNumber: lessonIndex + 1,
-        };
-        return;
-      }
-    }
+    summary.get(courseId).nextLesson = findNextLesson(
+      courseModules,
+      lessonsByModule,
+      completedIds,
+      lastAccessByCourse.get(courseId)?.lessonId,
+    );
   });
 
   return summary;
@@ -1308,9 +1345,19 @@ const toProgressResponse = (summary) => {
     totalLessons: summary.totalLessons,
     percent,
     lastCompletedAt: summary.lastCompletedAt,
+    lastAccessedAt: summary.lastAccessedAt,
     nextLesson: summary.nextLesson,
     certificateAvailable: percent >= certificateMinProgress,
   };
+};
+
+const getLastAccess = async (studentId, courseIds) => {
+  const { data } = await supabaseAdmin
+    .from('enrollments')
+    .select('course_id, last_lesson_id, last_accessed_at')
+    .eq('student_id', studentId)
+    .in('course_id', courseIds);
+  return new Map((data || []).map((row) => [row.course_id, { lessonId: row.last_lesson_id, accessedAt: row.last_accessed_at }]));
 };
 
 app.get('/api/enrollments/me', requireAuth, async (request, response) => {
@@ -1319,6 +1366,8 @@ app.get('/api/enrollments/me', requireAuth, async (request, response) => {
     .select(`
       id,
       enrolled_at,
+      last_lesson_id,
+      last_accessed_at,
       course:courses (id, title, price, level, image_url, rating, review_count, enrollment_count)
     `)
     .eq('student_id', request.user.id)
@@ -1329,13 +1378,48 @@ app.get('/api/enrollments/me', requireAuth, async (request, response) => {
   }
 
   const enrollments = data.filter((enrollment) => enrollment.course);
-  const progress = await getCoursesProgress(request.user.id, enrollments.map((enrollment) => enrollment.course.id));
+  const lastAccess = new Map(enrollments.map((enrollment) => [enrollment.course.id, {
+    lessonId: enrollment.last_lesson_id,
+    accessedAt: enrollment.last_accessed_at,
+  }]));
+  const progress = await getCoursesProgress(request.user.id, enrollments.map((enrollment) => enrollment.course.id), lastAccess);
   if (!progress) return response.status(500).json({ error: 'Não foi possível calcular o progresso dos cursos.' });
 
   return response.json(enrollments.map((enrollment) => ({
-    ...enrollment,
+    id: enrollment.id,
+    enrolled_at: enrollment.enrolled_at,
+    course: enrollment.course,
     progress: toProgressResponse(progress.get(enrollment.course.id)),
   })));
+});
+
+// O player avisa qual aula o aluno abriu. É o que permite o "Continue de onde
+// parou" retomar uma aula vista pela metade, mesmo sem marcá-la como concluída.
+app.put('/api/courses/:courseId/last-lesson', requireAuth, async (request, response) => {
+  const courseId = parseCourseId(request.params.courseId);
+  const lessonId = parseLessonId(request.body.lessonId);
+  if (!courseId || !lessonId) return response.status(400).json({ error: 'Curso ou aula inválidos.' });
+
+  const context = await getLessonContext(lessonId);
+  if (!context || context.courseId !== courseId) {
+    return response.status(404).json({ error: 'Aula não encontrada neste curso.' });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('enrollments')
+    .update({ last_lesson_id: lessonId, last_accessed_at: new Date().toISOString() })
+    .eq('student_id', request.user.id)
+    .eq('course_id', courseId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    console.error('Erro ao registrar a última aula no Supabase:', error.message);
+    return response.status(500).json({ error: 'Não foi possível registrar o acesso à aula.' });
+  }
+  if (!data) return response.status(404).json({ error: 'Você não está matriculado neste curso.' });
+
+  return response.status(204).send();
 });
 
 // Dados do certificado de conclusão. A regra de liberação é verificada aqui,
