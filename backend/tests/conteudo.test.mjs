@@ -45,7 +45,7 @@ try {
   // 1) Conteúdo inicial com ids temporários
   const first = await call('PUT', `/api/courses/${courseId}/content`, token, { modules: [
     { id: 'modulo-a', title: 'Módulo A', lessons: [
-      { id: 'aula-1', title: 'Vídeo 1', duration: '10 min', type: 'video', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', documentUrl: null },
+      { id: 'aula-1', title: 'Vídeo 1', duration: '10 min', type: 'video', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', documentUrl: null, description: '  Primeira aula do módulo.  ', videoCredit: 'Canal Exemplo (YouTube)' },
       { id: 'aula-2', title: 'Vídeo 2', duration: '12 min', type: 'video', videoUrl: '', documentUrl: '' },
       { id: 'aula-3', title: 'Quiz A', duration: '5 min', type: 'quiz', quizData: { passMark: 60, questions: [
         { id: 'q1', text: 'Pergunta 1?', options: ['Sim', 'Não'], correct: 'Sim' },
@@ -59,6 +59,8 @@ try {
   check('2 módulos com ids numéricos', first.body.length === 2 && Number.isInteger(moduleA.id) && Number.isInteger(moduleB.id));
   check('3 aulas no módulo A, na ordem', moduleA.lessons.map((l) => l.title).join('|') === 'Vídeo 1|Vídeo 2|Quiz A');
   check('URL vazia vira null', moduleA.lessons[1].videoUrl === null);
+  check('descrição e crédito do vídeo salvos', moduleA.lessons[0].description === 'Primeira aula do módulo.' && moduleA.lessons[0].videoCredit === 'Canal Exemplo (YouTube)');
+  check('aula sem descrição fica null', moduleA.lessons[1].description === null && moduleA.lessons[1].videoCredit === null);
   const quizA = moduleA.lessons[2];
   check('quiz salvo com nota e 2 perguntas', quizA.quizData?.passMark === 60 && quizA.quizData.questions.length === 2);
 
@@ -108,6 +110,8 @@ try {
     ['quiz sem perguntas', { modules: [{ id: 'x', title: 'M', lessons: [{ id: 'a', title: 'Q', duration: '1', type: 'quiz', quizData: { passMark: 70, questions: [] } }] }] }],
     ['resposta fora das opções', { modules: [{ id: 'x', title: 'M', lessons: [{ id: 'a', title: 'Q', duration: '1', type: 'quiz', quizData: { passMark: 70, questions: [{ text: 'P', options: ['A', 'B'], correct: 'C' }] } }] }] }],
     ['nota acima de 100', { modules: [{ id: 'x', title: 'M', lessons: [{ id: 'a', title: 'Q', duration: '1', type: 'quiz', quizData: { passMark: 150, questions: [{ text: 'P', options: ['A', 'B'], correct: 'A' }] } }] }] }],
+    ['descrição longa demais', { modules: [{ id: 'x', title: 'M', lessons: [{ id: 'a', title: 'A', duration: '1', type: 'video', description: 'x'.repeat(1001) }] }] }],
+    ['crédito longo demais', { modules: [{ id: 'x', title: 'M', lessons: [{ id: 'a', title: 'A', duration: '1', type: 'video', videoCredit: 'x'.repeat(121) }] }] }],
     ['modules ausente', {}],
   ];
   for (const [label, payload] of invalids) {

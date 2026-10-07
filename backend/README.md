@@ -30,6 +30,7 @@ Na raiz do projeto:
 ```bash
 npm run server      # API em http://localhost:3001 (GET /api/health)
 npm run test:api    # testes de integração (com a API rodando)
+npm run seed:cursos # cadastra o conteúdo real dos 6 cursos (scripts/cursos-reais/)
 ```
 
 ## Rotas

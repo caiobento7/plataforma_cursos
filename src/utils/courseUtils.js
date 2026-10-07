@@ -49,12 +49,12 @@ export const getVideoEmbedUrl = (url) => {
   const host = parsed.hostname.replace(/^www\.|^m\./, '');
   if (host === 'youtu.be') {
     const id = parsed.pathname.slice(1);
-    return id ? `https://www.youtube.com/embed/${id}` : null;
+    return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
   }
   if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
     const [, section, pathId] = parsed.pathname.split('/');
     const id = parsed.searchParams.get('v') || (['embed', 'shorts', 'live'].includes(section) ? pathId : null);
-    return id ? `https://www.youtube.com/embed/${id}` : null;
+    return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
   }
   if (host === 'vimeo.com' || host === 'player.vimeo.com') {
     const id = parsed.pathname.split('/').find((part) => /^\d+$/.test(part));
