@@ -1,418 +1,398 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Pencil, Plus, X } from 'lucide-react';
+import FileUrlField from '../components/FileUrlField.jsx';
 import MiniQuizEditor from '../components/MiniQuizEditor.jsx';
 
-const CourseEditorPage = ({ navigateTo, course, content, onUpdateContent }) => {
-    const [modules, setModules] = useState([]);
-    
-    useEffect(() => {
-      setModules(JSON.parse(JSON.stringify(content || [])));
-    }, [content, course]);
-    
-    const [newModuleTitle, setNewModuleTitle] = useState('');
-    
-    const [newLessonForm, setNewLessonForm] = useState({ 
-      title: '', 
-      duration: '10 min', 
-      type: 'video',
-      videoUrl: '', 
-      documentUrl: '' 
-    }); 
-  
-    const [editingLesson, setEditingLesson] = useState(null); // { moduleId, data: lessonData }
-  
-    const handleAddModule = (e) => {
-      e.preventDefault();
-      if (!newModuleTitle.trim()) return;
-      
-      const newModule = {
-        id: `mod-${Date.now()}`,
-        title: newModuleTitle,
-        lessons: []
-      };
-      setModules(prev => [...prev, newModule]);
-      setNewModuleTitle('');
-    };
-  
-    const handleDeleteModule = (moduleId) => {
-      const moduleTitle = modules.find(m => m.id === moduleId)?.title;
-      if (window.confirm(`Tem certeza que deseja excluir o módulo: "${moduleTitle}"?`)) {
-        setModules(prev => prev.filter(m => m.id !== moduleId));
-      }
-    };
-  
-    const handleLessonFormChange = (field, value) => {
-      setNewLessonForm(prev => ({ ...prev, [field]: value }));
-    };
-    
-    const resetLessonForm = () => {
-      setNewLessonForm({ title: '', duration: '10 min', type: 'video', videoUrl: '', documentUrl: '' });
-      setEditingLesson(null);
-    };
-  
-    const handleSaveLesson = (e, moduleId) => {
-      e.preventDefault();
-      
-      if (editingLesson) {
-        if (!newLessonForm.title.trim()) return;
-        
-        const updatedLesson = {
-          ...editingLesson.data, 
-          title: newLessonForm.title,
-          duration: newLessonForm.duration,
-          type: newLessonForm.type,
-          videoUrl: newLessonForm.videoUrl || null,
-          documentUrl: newLessonForm.documentUrl || null
-        };
-  
-        setModules(prev => prev.map(m => {
-          if (m.id === editingLesson.moduleId) {
-            return {
-              ...m,
-              lessons: m.lessons.map(l => l.id === editingLesson.data.id ? updatedLesson : l)
-            };
-          }
-          return m;
-        }));
-        
-      } else {
-        if (!newLessonForm.title.trim() || !newLessonForm.duration.trim()) {
-          alert('Preencha o título e a duração da aula.');
-          return;
-        }
-        
-        const newLesson = {
-          id: `${course.id}-${moduleId}-${Date.now()}`,
-          title: newLessonForm.title,
-          duration: newLessonForm.duration,
-          type: newLessonForm.type,
-          videoUrl: newLessonForm.videoUrl || null,
-          documentUrl: newLessonForm.documentUrl || null
-        };
-        
-        setModules(prev => prev.map(m => {
-          if (m.id === moduleId) {
-            return { ...m, lessons: [...m.lessons, newLesson] };
-          }
-          return m;
-        }));
-      }
-      
-      resetLessonForm();
-    };
-    
-    const handleSaveQuizLesson = (moduleId, quizData) => {
-      if (!newLessonForm.title.trim()) {
-        alert('Preencha o título da aula de quiz.');
-        return;
-      }
-  
-      const newLesson = {
-        id: `${course.id}-${moduleId}-${Date.now()}`,
-        title: newLessonForm.title,
-        duration: newLessonForm.duration, 
-        type: 'quiz',
-        quizData: quizData 
-      };
-  
-      if (editingLesson) {
-        const updatedLesson = { ...newLesson, id: editingLesson.data.id }; 
-        
-        setModules(prev => prev.map(m => {
-          if (m.id === editingLesson.moduleId) {
-            return {
-              ...m,
-              lessons: m.lessons.map(l => l.id === editingLesson.data.id ? updatedLesson : l)
-            };
-          }
-          return m;
-        }));
-        
-      } else {
-        setModules(prev => prev.map(m => {
-          if (m.id === moduleId) {
-            return { ...m, lessons: [...m.lessons, newLesson] };
-          }
-          return m;
-        }));
-      }
-  
-      resetLessonForm();
-    };
-  
-    const handleDeleteLesson = (moduleId, lessonId) => {
-      const lessonTitle = modules.find(m => m.id === moduleId)?.lessons.find(l => l.id === lessonId)?.title;
-      if (window.confirm(`Tem certeza que deseja excluir a aula: "${lessonTitle}"?`)) {
-        setModules(prev => prev.map(m => {
-          if (m.id === moduleId) {
-            return {
-              ...m,
-              lessons: m.lessons.filter(l => l.id !== lessonId)
-            };
-          }
-          return m;
-        }));
-      }
-    };
-    
-    const handleStartEditLesson = (moduleId, lessonId) => {
-      const module = modules.find(m => m.id === moduleId);
-      const lesson = module.lessons.find(l => l.id === lessonId);
-      
-      if (lesson) {
-        setEditingLesson({ moduleId, data: lesson });
-        setNewLessonForm({
-          title: lesson.title,
-          duration: lesson.duration,
-          type: lesson.type,
-          videoUrl: lesson.videoUrl || '',
-          documentUrl: lesson.documentUrl || ''
-        });
-      }
-    };
-    
-    const handleMoveModule = (index, direction) => {
-      const newModules = [...modules];
-      const newIndex = direction === 'up' ? index - 1 : index + 1;
-      
-      if (newIndex < 0 || newIndex >= newModules.length) return; 
-      
-      [newModules[index], newModules[newIndex]] = [newModules[newIndex], newModules[index]];
-      
-      setModules(newModules);
-    };
-  
-    const handleMoveLesson = (moduleId, lessonIndex, direction) => {
-      const newModules = [...modules];
-      const moduleIndexInState = newModules.findIndex(m => m.id === moduleId); 
-      if (moduleIndexInState === -1) return;
-  
-      const module = newModules[moduleIndexInState];
-      const newLessons = [...module.lessons];
-      const newLessonIndex = direction === 'up' ? lessonIndex - 1 : lessonIndex + 1;
-      
-      if (newLessonIndex < 0 || newLessonIndex >= newLessons.length) return; 
-  
-      [newLessons[lessonIndex], newLessons[newLessonIndex]] = [newLessons[newLessonIndex], newLessons[lessonIndex]];
-      
-      newModules[moduleIndexInState] = { ...module, lessons: newLessons };
-      setModules(newModules);
-    };
-  
-    const handleSaveContent = () => {
-      onUpdateContent(course.id, modules);
-      alert('Conteúdo do curso salvo com sucesso!');
-      navigateTo('dashboard', 'manage-courses'); 
-    };
-  
-    if (!course) {
-      return (
-        <div className="container" style={{ marginTop: '30px' }}>
-          <h2>Curso não encontrado</h2>
-          <button className="btn" onClick={() => navigateTo('dashboard')}>Voltar para o Painel</button>
-        </div>
-      );
+const emptyLessonForm = { title: '', duration: '10 min', type: 'video', videoUrl: '', documentUrl: '' };
+
+// Itens criados no editor recebem ids temporários (texto). A API reconhece
+// que não são numéricos e os insere como novos ao salvar.
+const temporaryId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+const cloneContent = (content) => JSON.parse(JSON.stringify(content || []));
+
+const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
+  const [modules, setModules] = useState(() => cloneContent(content));
+  const [newModuleTitle, setNewModuleTitle] = useState('');
+  const [renamingModule, setRenamingModule] = useState(null); // { id, title }
+  const [lessonForm, setLessonForm] = useState(emptyLessonForm);
+  const [formModuleId, setFormModuleId] = useState(null);
+  const [editingLesson, setEditingLesson] = useState(null); // dados originais da aula em edição
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [activeUploads, setActiveUploads] = useState(0);
+  const isUploading = activeUploads > 0;
+
+  // Sincroniza com o conteúdo vindo da API (carregamento inicial e após salvar).
+  useEffect(() => {
+    if (Array.isArray(content)) setModules(cloneContent(content));
+  }, [content]);
+
+  const isLoading = content === undefined;
+  const hasLoadError = content === null;
+  const hasUnsavedChanges = Array.isArray(content) && JSON.stringify(modules) !== JSON.stringify(content);
+
+  const updateModule = (moduleId, update) => {
+    setModules((previous) => previous.map((module) => (module.id === moduleId ? update(module) : module)));
+  };
+
+  const closeLessonForm = () => {
+    setLessonForm(emptyLessonForm);
+    setFormModuleId(null);
+    setEditingLesson(null);
+  };
+
+  const openNewLessonForm = (moduleId) => {
+    setLessonForm(emptyLessonForm);
+    setEditingLesson(null);
+    setFormModuleId(moduleId);
+  };
+
+  const handleAddModule = (event) => {
+    event.preventDefault();
+    const title = newModuleTitle.trim();
+    if (!title) return;
+
+    setModules((previous) => [...previous, { id: temporaryId('modulo'), title, lessons: [] }]);
+    setNewModuleTitle('');
+  };
+
+  const handleRenameModule = (event) => {
+    event.preventDefault();
+    const title = renamingModule.title.trim();
+    if (!title) return;
+    updateModule(renamingModule.id, (module) => ({ ...module, title }));
+    setRenamingModule(null);
+  };
+
+  const handleDeleteModule = (module) => {
+    const lessonCount = module.lessons.length;
+    const detail = lessonCount > 0 ? ` As ${lessonCount} aula(s) dele também serão removidas.` : '';
+    if (!window.confirm(`Excluir o módulo "${module.title}"?${detail}`)) return;
+
+    setModules((previous) => previous.filter((item) => item.id !== module.id));
+    if (formModuleId === module.id) closeLessonForm();
+  };
+
+  const handleLessonFormChange = (field, value) => {
+    setLessonForm((previous) => ({ ...previous, [field]: value }));
+  };
+
+  const handleUploadingChange = (uploading) => {
+    setActiveUploads((previous) => previous + (uploading ? 1 : -1));
+  };
+
+  const saveLesson = (moduleId, lessonData) => {
+    if (editingLesson) {
+      updateModule(moduleId, (module) => ({
+        ...module,
+        lessons: module.lessons.map((lesson) => (lesson.id === editingLesson.id ? { ...lessonData, id: editingLesson.id } : lesson)),
+      }));
+    } else {
+      updateModule(moduleId, (module) => ({
+        ...module,
+        lessons: [...module.lessons, { ...lessonData, id: temporaryId('aula') }],
+      }));
     }
-  
+    closeLessonForm();
+  };
+
+  const validateLessonBasics = () => {
+    if (!lessonForm.title.trim() || !lessonForm.duration.trim()) {
+      alert('Preencha o título e a duração da aula.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSaveVideoLesson = (moduleId) => {
+    if (!validateLessonBasics()) return;
+    saveLesson(moduleId, {
+      title: lessonForm.title.trim(),
+      duration: lessonForm.duration.trim(),
+      type: 'video',
+      videoUrl: lessonForm.videoUrl.trim() || null,
+      documentUrl: lessonForm.documentUrl.trim() || null,
+    });
+  };
+
+  const handleSaveQuizLesson = (moduleId, quizData) => {
+    if (!validateLessonBasics()) return;
+    saveLesson(moduleId, {
+      title: lessonForm.title.trim(),
+      duration: lessonForm.duration.trim(),
+      type: 'quiz',
+      quizData,
+    });
+  };
+
+  const handleDeleteLesson = (moduleId, lesson) => {
+    if (!window.confirm(`Excluir a aula "${lesson.title}"?`)) return;
+    updateModule(moduleId, (module) => ({ ...module, lessons: module.lessons.filter((item) => item.id !== lesson.id) }));
+    if (editingLesson?.id === lesson.id) closeLessonForm();
+  };
+
+  const handleStartEditLesson = (moduleId, lesson) => {
+    setEditingLesson(lesson);
+    setFormModuleId(moduleId);
+    setLessonForm({
+      title: lesson.title,
+      duration: lesson.duration,
+      type: lesson.type,
+      videoUrl: lesson.videoUrl || '',
+      documentUrl: lesson.documentUrl || '',
+    });
+  };
+
+  const handleMoveModule = (index, direction) => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= modules.length) return;
+
+    const reordered = [...modules];
+    [reordered[index], reordered[newIndex]] = [reordered[newIndex], reordered[index]];
+    setModules(reordered);
+  };
+
+  const handleMoveLesson = (moduleId, lessonIndex, direction) => {
+    updateModule(moduleId, (module) => {
+      const newIndex = direction === 'up' ? lessonIndex - 1 : lessonIndex + 1;
+      if (newIndex < 0 || newIndex >= module.lessons.length) return module;
+
+      const lessons = [...module.lessons];
+      [lessons[lessonIndex], lessons[newIndex]] = [lessons[newIndex], lessons[lessonIndex]];
+      return { ...module, lessons };
+    });
+  };
+
+  const handleSaveContent = async () => {
+    setIsSaving(true);
+    setSaveError('');
+    try {
+      await onSaveContent(course.id, modules);
+      closeLessonForm();
+      alert('Conteúdo do curso salvo com sucesso!');
+    } catch (error) {
+      setSaveError(error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleBack = () => {
+    if (hasUnsavedChanges && !window.confirm('Existem alterações não salvas. Deseja sair mesmo assim?')) return;
+    navigateTo('dashboard', 'manage-courses');
+  };
+
+  if (!course) {
+    return (
+      <div className="container" style={{ marginTop: '30px' }}>
+        <h2>Curso não encontrado</h2>
+        <button className="btn" onClick={() => navigateTo('dashboard')}>Voltar para o Painel</button>
+      </div>
+    );
+  }
+
+  if (isLoading || hasLoadError) {
     return (
       <div className="container course-editor">
-        <button className="btn" onClick={() => navigateTo('dashboard', 'manage-courses')} style={{marginBottom: '20px'}}>
+        <button className="btn" onClick={() => navigateTo('dashboard', 'manage-courses')} style={{ marginBottom: '20px' }}>
           <ArrowLeft size={16} aria-hidden="true" /> Voltar para Gerenciador
         </button>
         <div className="card">
           <h2>Editor de Conteúdo: {course.title}</h2>
-          <p>Adicione módulos e aulas ao seu curso.</p>
-  
-          <div style={{marginTop: '20px'}}>
-            {modules.map((module, moduleIndex) => (
-              <div key={module.id} className="editor-module">
-                <div className="editor-module-header">
-                  <h3>{module.title}</h3>
-                  <div className="editor-lesson-controls">
-                     <button 
-                      className="btn order-btn" 
-                      title="Mover Módulo Para Cima"
-                      onClick={() => handleMoveModule(moduleIndex, 'up')}
-                      disabled={moduleIndex === 0}
-                    >
-                      <ArrowUp size={16} aria-hidden="true" />
-                    </button>
-                    <button 
-                      className="btn order-btn" 
-                      title="Mover Módulo Para Baixo"
-                      onClick={() => handleMoveModule(moduleIndex, 'down')}
-                      disabled={moduleIndex === modules.length - 1}
-                    >
-                      <ArrowDown size={16} aria-hidden="true" />
-                    </button>
-                    <button className="btn-danger" style={{fontSize: '12px'}} onClick={() => handleDeleteModule(module.id)}>
-                      Excluir Módulo
-                    </button>
-                  </div>
-                </div>
-                <div className="editor-lessons">
-                  {module.lessons.length === 0 ? (
-                    <p style={{textAlign: 'center', color: 'var(--text-light)'}}>Nenhuma aula neste módulo.</p>
-                  ) : (
-                    module.lessons.map((lesson, lessonIndex) => (
-                      <div key={lesson.id} className="editor-lesson">
-                        <div>
-                          <span>{lessonIndex + 1}. {lesson.title}</span>
-                          <br/>
-                          <small>{lesson.type === 'video' ? 'Vídeo' : 'Quiz'} &bull; {lesson.duration}</small>
-                        </div>
-                        <div className="editor-lesson-controls">
-                          <button 
-                            className="btn order-btn" 
-                            title="Mover Aula Para Cima"
-                            onClick={() => handleMoveLesson(module.id, lessonIndex, 'up')}
-                            disabled={lessonIndex === 0}
-                          >
-                            <ArrowUp size={16} aria-hidden="true" />
-                          </button>
-                          <button 
-                            className="btn order-btn" 
-                            title="Mover Aula Para Baixo"
-                            onClick={() => handleMoveLesson(module.id, lessonIndex, 'down')}
-                            disabled={lessonIndex === module.lessons.length - 1}
-                          >
-                            <ArrowDown size={16} aria-hidden="true" />
-                          </button>
-                           <button 
-                            className="btn order-btn" 
-                            style={{width: 'auto', padding: '0 8px'}}
-                            title="Editar Aula"
-                            onClick={() => handleStartEditLesson(module.id, lesson.id)}
-                          >
-                            Editar
-                          </button>
-                          <button className="btn-danger" style={{fontSize: '12px'}} onClick={() => handleDeleteLesson(module.id, lesson.id)}>
-                            Excluir
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                
-                <div className="add-lesson-form">
-                  <h4>{editingLesson && editingLesson.moduleId === module.id ? 'Editando Aula' : `Adicionar Aula a: ${module.title}`}</h4>
-                  
-                  <div> 
-                    <div className="form-group">
-                      <label>Título da Aula</label>
-                      <input 
-                        type="text" 
-                        value={newLessonForm.title}
-                        onChange={(e) => handleLessonFormChange('title', e.target.value)}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', gap: '15px' }}>
-                      <div className="form-group" style={{ flex: 1 }}>
-                        <label>Duração</label>
-                        <input 
-                          type="text" 
-                          placeholder="ex: 15 min"
-                          value={newLessonForm.duration}
-                          onChange={(e) => handleLessonFormChange('duration', e.target.value)}
-                        />
-                      </div>
-                      <div className="form-group" style={{ flex: 1 }}>
-                        <label>Tipo</label>
-                        <select
-                          value={newLessonForm.type}
-                          onChange={(e) => handleLessonFormChange('type', e.target.value)}
-                          disabled={editingLesson && editingLesson.data.type === 'quiz'}
-                        >
-                          <option value="video">Vídeo</option>
-                          <option value="quiz">Quiz</option>
-                        </select>
-                      </div>
-                    </div>
-                    
-                    {newLessonForm.type === 'video' && (
-                      <>
-                        <div className="form-group">
-                          <label>URL do Vídeo</label>
-                          <input 
-                            type="text" 
-                            placeholder="https://.../meu-video.mp4" 
-                            value={newLessonForm.videoUrl || ''}
-                            onChange={(e) => handleLessonFormChange('videoUrl', e.target.value)}
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label>URL do Material de Apoio (PDF, etc.) - Opcional</label>
-                          <input 
-                            type="text" 
-                            placeholder="https://.../meu-arquivo.pdf" 
-                            value={newLessonForm.documentUrl || ''}
-                            onChange={(e) => handleLessonFormChange('documentUrl', e.target.value)}
-                          />
-                        </div>
-                      </>
-                    )}
-                    
-                    {newLessonForm.type !== 'quiz' && (
-                      <button 
-                        type="button" 
-                        className={editingLesson ? 'btn btn-success' : 'btn btn-accent'}
-                        style={{width: '100%'}} 
-                        onClick={(e) => handleSaveLesson(e, module.id)}
-                      >
-                        {editingLesson ? 'Salvar Edição' : 'Adicionar Aula'}
-                      </button>
-                    )}
-                    
-                    {newLessonForm.type === 'quiz' && !editingLesson && (
-                      <MiniQuizEditor 
-                        onSaveQuiz={(quizData) => handleSaveQuizLesson(module.id, quizData)}
-                      />
-                    )}
-                    
-                    {newLessonForm.type === 'quiz' && editingLesson && (
-                      <p style={{color: 'var(--text-light)', textAlign: 'center'}}>A edição de quizzes existentes não é suportada nesta simulação. Cancele a edição para adicionar um novo quiz.</p>
-                    )}
-                    
-                    {editingLesson && (
-                       <button 
-                        type="button" 
-                        className="btn" 
-                        style={{width: '100%', marginTop: '10px', backgroundColor: 'var(--text-light)'}} 
-                        onClick={resetLessonForm}
-                      >
-                        Cancelar Edição
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-  
-          <form className="add-module-form card" onSubmit={handleAddModule}>
-            <h3>Adicionar Novo Módulo</h3>
-            <div className="form-group">
-              <label>Título do Módulo</label>
-              <input 
-                type="text" 
-                placeholder="Ex: Módulo 1: Introdução"
-                value={newModuleTitle}
-                onChange={(e) => setNewModuleTitle(e.target.value)}
-              />
-            </div>
-            <button type="submit" className="btn" style={{width: '100%'}}>Adicionar Módulo</button>
-          </form>
-          
-          <hr style={{margin: '20px 0', border: 'none', borderTop: '1px solid var(--border)'}} />
-          
-          <button className="btn btn-success" style={{width: '100%', fontSize: '18px'}} onClick={handleSaveContent}>
-            Salvar Alterações do Curso
-          </button>
-  
+          {isLoading ? (
+            <p>Carregando conteúdo do curso...</p>
+          ) : (
+            <>
+              <p className="editor-feedback error">Não foi possível carregar o conteúdo deste curso.</p>
+              <button className="btn" onClick={() => navigateTo('courseEditor', course.id)}>Tentar novamente</button>
+            </>
+          )}
         </div>
       </div>
     );
-  };
+  }
 
-  export default CourseEditorPage;
+  const renderLessonForm = (module) => (
+    <div className="add-lesson-form">
+      <h4>{editingLesson ? `Editando: ${editingLesson.title}` : `Nova aula em: ${module.title}`}</h4>
+
+      <div className="form-group">
+        <label>Título da Aula</label>
+        <input type="text" value={lessonForm.title} onChange={(event) => handleLessonFormChange('title', event.target.value)} />
+      </div>
+      <div style={{ display: 'flex', gap: '15px' }}>
+        <div className="form-group" style={{ flex: 1 }}>
+          <label>Duração</label>
+          <input type="text" placeholder="ex: 15 min" value={lessonForm.duration} onChange={(event) => handleLessonFormChange('duration', event.target.value)} />
+        </div>
+        <div className="form-group" style={{ flex: 1 }}>
+          <label>Tipo</label>
+          <select value={lessonForm.type} onChange={(event) => handleLessonFormChange('type', event.target.value)}>
+            <option value="video">Vídeo</option>
+            <option value="quiz">Quiz</option>
+          </select>
+        </div>
+      </div>
+
+      {lessonForm.type === 'video' ? (
+        <>
+          <FileUrlField
+            label="Vídeo da Aula"
+            kind="video"
+            courseId={course.id}
+            value={lessonForm.videoUrl}
+            onChange={(value) => handleLessonFormChange('videoUrl', value)}
+            accept="video/mp4,video/webm"
+            maxSizeMb={50}
+            placeholder="Link do YouTube ou de um arquivo .mp4"
+            hint="Envie um MP4 ou WebM de até 50 MB, ou cole um link do YouTube ou Vimeo."
+            onUploadingChange={handleUploadingChange}
+          />
+          <FileUrlField
+            label="Material de Apoio - Opcional"
+            kind="material"
+            courseId={course.id}
+            value={lessonForm.documentUrl}
+            onChange={(value) => handleLessonFormChange('documentUrl', value)}
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.txt,.png,.jpg,.jpeg"
+            maxSizeMb={20}
+            placeholder="Cole um link ou escolha um arquivo"
+            hint="PDF, Word, PowerPoint, Excel, ZIP, TXT, PNG ou JPG, até 20 MB."
+            onUploadingChange={handleUploadingChange}
+          />
+          <button type="button" className={editingLesson ? 'btn btn-success' : 'btn btn-accent'} style={{ width: '100%' }} onClick={() => handleSaveVideoLesson(module.id)} disabled={isUploading}>
+            {editingLesson ? 'Aplicar Edição' : 'Adicionar Aula'}
+          </button>
+        </>
+      ) : (
+        <MiniQuizEditor
+          key={editingLesson?.id || 'novo-quiz'}
+          initialQuiz={editingLesson?.type === 'quiz' ? editingLesson.quizData : null}
+          submitLabel={editingLesson ? 'Aplicar Edição do Quiz' : 'Adicionar Aula de Quiz'}
+          onSaveQuiz={(quizData) => handleSaveQuizLesson(module.id, quizData)}
+        />
+      )}
+
+      <button type="button" className="btn editor-cancel-button" onClick={closeLessonForm} disabled={isUploading}>
+        Cancelar
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="container course-editor">
+      <button className="btn" onClick={handleBack} style={{ marginBottom: '20px' }}>
+        <ArrowLeft size={16} aria-hidden="true" /> Voltar para Gerenciador
+      </button>
+      <div className="card">
+        <div className="editor-title-row">
+          <div>
+            <h2>Editor de Conteúdo: {course.title}</h2>
+            <p>Organize módulos, aulas e quizzes. As alterações só valem depois de salvar.</p>
+          </div>
+          {hasUnsavedChanges && <span className="editor-unsaved-badge">Alterações não salvas</span>}
+        </div>
+
+        <div style={{ marginTop: '20px' }}>
+          {modules.length === 0 && <p className="editor-empty">Este curso ainda não tem módulos. Adicione o primeiro abaixo.</p>}
+
+          {modules.map((module, moduleIndex) => (
+            <div key={module.id} className="editor-module">
+              <div className="editor-module-header">
+                {renamingModule?.id === module.id ? (
+                  <form className="editor-rename-form" onSubmit={handleRenameModule}>
+                    <input
+                      type="text"
+                      aria-label="Novo título do módulo"
+                      value={renamingModule.title}
+                      onChange={(event) => setRenamingModule({ id: module.id, title: event.target.value })}
+                      autoFocus
+                    />
+                    <button type="submit" className="btn order-btn" title="Confirmar"><Check size={16} aria-hidden="true" /></button>
+                    <button type="button" className="btn order-btn" title="Cancelar" onClick={() => setRenamingModule(null)}><X size={16} aria-hidden="true" /></button>
+                  </form>
+                ) : (
+                  <h3>{module.title}</h3>
+                )}
+                <div className="editor-lesson-controls">
+                  <button className="btn order-btn" title="Renomear Módulo" onClick={() => setRenamingModule({ id: module.id, title: module.title })}>
+                    <Pencil size={14} aria-hidden="true" />
+                  </button>
+                  <button className="btn order-btn" title="Mover Módulo Para Cima" onClick={() => handleMoveModule(moduleIndex, 'up')} disabled={moduleIndex === 0}>
+                    <ArrowUp size={16} aria-hidden="true" />
+                  </button>
+                  <button className="btn order-btn" title="Mover Módulo Para Baixo" onClick={() => handleMoveModule(moduleIndex, 'down')} disabled={moduleIndex === modules.length - 1}>
+                    <ArrowDown size={16} aria-hidden="true" />
+                  </button>
+                  <button className="btn-danger" style={{ fontSize: '12px' }} onClick={() => handleDeleteModule(module)}>
+                    Excluir Módulo
+                  </button>
+                </div>
+              </div>
+              <div className="editor-lessons">
+                {module.lessons.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: 'var(--text-light)' }}>Nenhuma aula neste módulo.</p>
+                ) : (
+                  module.lessons.map((lesson, lessonIndex) => (
+                    <div key={lesson.id} className={`editor-lesson ${editingLesson?.id === lesson.id ? 'editing' : ''}`}>
+                      <div>
+                        <span>{lessonIndex + 1}. {lesson.title}</span>
+                        <br />
+                        <small>
+                          {lesson.type === 'video' ? 'Vídeo' : `Quiz · ${lesson.quizData?.questions?.length || 0} pergunta(s)`} &bull; {lesson.duration}
+                        </small>
+                      </div>
+                      <div className="editor-lesson-controls">
+                        <button className="btn order-btn" title="Mover Aula Para Cima" onClick={() => handleMoveLesson(module.id, lessonIndex, 'up')} disabled={lessonIndex === 0}>
+                          <ArrowUp size={16} aria-hidden="true" />
+                        </button>
+                        <button className="btn order-btn" title="Mover Aula Para Baixo" onClick={() => handleMoveLesson(module.id, lessonIndex, 'down')} disabled={lessonIndex === module.lessons.length - 1}>
+                          <ArrowDown size={16} aria-hidden="true" />
+                        </button>
+                        <button className="btn order-btn" style={{ width: 'auto', padding: '0 8px' }} title="Editar Aula" onClick={() => handleStartEditLesson(module.id, lesson)}>
+                          Editar
+                        </button>
+                        <button className="btn-danger" style={{ fontSize: '12px' }} onClick={() => handleDeleteLesson(module.id, lesson)}>
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {formModuleId === module.id ? (
+                renderLessonForm(module)
+              ) : (
+                <div className="editor-add-lesson">
+                  <button type="button" className="btn btn-accent" onClick={() => openNewLessonForm(module.id)}>
+                    <Plus size={16} aria-hidden="true" /> Adicionar aula
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <form className="add-module-form card" onSubmit={handleAddModule}>
+          <h3>Adicionar Novo Módulo</h3>
+          <div className="form-group">
+            <label>Título do Módulo</label>
+            <input type="text" placeholder="Ex: Módulo 1: Introdução" value={newModuleTitle} onChange={(event) => setNewModuleTitle(event.target.value)} />
+          </div>
+          <button type="submit" className="btn" style={{ width: '100%' }}>Adicionar Módulo</button>
+        </form>
+
+        <hr style={{ margin: '20px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+
+        {saveError && <p className="editor-feedback error" role="alert">{saveError}</p>}
+        <button className="btn btn-success" style={{ width: '100%', fontSize: '18px' }} onClick={handleSaveContent} disabled={isSaving || isUploading || !hasUnsavedChanges}>
+          {isSaving ? 'Salvando...' : hasUnsavedChanges ? 'Salvar Alterações do Curso' : 'Nenhuma alteração para salvar'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default CourseEditorPage;

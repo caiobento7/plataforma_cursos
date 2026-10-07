@@ -70,13 +70,15 @@ const App = () => {
     }
   }, []);
 
+  // undefined = carregando, null = falha ao carregar. O editor de conteúdo usa
+  // essa diferença para não salvar uma lista vazia por cima do curso.
   const loadCourseContent = useCallback(async (courseId) => {
     try {
       const content = await api.getCourseContent(courseId);
       setCoursesContentDB((previous) => ({ ...previous, [courseId]: content }));
     } catch (error) {
       console.error('Não foi possível carregar o conteúdo:', error.message);
-      setCoursesContentDB((previous) => ({ ...previous, [courseId]: [] }));
+      setCoursesContentDB((previous) => ({ ...previous, [courseId]: null }));
     }
   }, []);
 
@@ -257,6 +259,12 @@ const App = () => {
     }
   };
 
+  // Erros sobem para o editor, que os exibe sem sair da página.
+  const handleSaveCourseContent = async (courseId, modules) => {
+    const content = await api.saveCourseContent(courseId, modules);
+    setCoursesContentDB((previous) => ({ ...previous, [courseId]: content }));
+  };
+
   // useCallback para manter a referência estável: o LessonPlayerPage usa esta
   // função como dependência de um efeito, que sem isso rodaria a cada render.
   const handleProgressUpdate = useCallback((courseId, data) => {
@@ -314,7 +322,7 @@ const App = () => {
       case 'dashboard': return currentUser?.role === 'admin'
         ? renderAdminDashboard()
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} />;
-      case 'courseEditor': return <CourseEditorPage navigateTo={navigateTo} course={selectedCourse} content={selectedContent} onUpdateContent={(courseId, content) => setCoursesContentDB((previous) => ({ ...previous, [courseId]: content }))} />;
+      case 'courseEditor': return <CourseEditorPage navigateTo={navigateTo} course={selectedCourse} content={selectedContent} onSaveContent={handleSaveCourseContent} />;
       case 'editCourseMetadata': return <EditCourseMetadataPage navigateTo={navigateTo} course={selectedCourse} onUpdateCourse={handleUpdateCourseMetadata} />;
       case 'login': return <LoginPage navigateTo={navigateTo} initialTab={currentPageData || 'login'} onAuthenticated={handleAuthenticated} onLoginComplete={handleLoginComplete} />;
       case 'cart': return <CartPage cart={cart} navigateTo={navigateTo} removeFromCart={(id) => setCart((previous) => previous.filter((course) => course.id !== id))} handlePurchase={handlePurchase} />;

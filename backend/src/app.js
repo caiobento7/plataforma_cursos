@@ -57,6 +57,14 @@ const parseLessonId = (value) => {
   return Number.isInteger(lessonId) && lessonId > 0 ? lessonId : null;
 };
 
+const isValidQuizQuestion = (question) => (
+  isNonEmptyString(question?.text)
+  && Array.isArray(question.options)
+  && question.options.length >= 2
+  && question.options.every(isNonEmptyString)
+  && question.options.includes(question.correct)
+);
+
 const ticketStatuses = new Set(['open', 'answered', 'closed']);
 
 const enrichSupportTickets = async (tickets) => {
@@ -522,18 +530,17 @@ app.delete('/api/courses/:courseId', requireAuth, requireAdmin, async (request, 
   return response.status(204).send();
 });
 
-app.get('/api/courses/:courseId/content', async (request, response) => {
-  const courseId = parseCourseId(request.params.courseId);
-  if (!courseId) return response.status(400).json({ error: 'Identificador de curso inválido.' });
-
+// Monta a árvore módulos → aulas → quiz de um curso. Devolve { data } ou
+// { error } com a mensagem para o cliente.
+const fetchCourseContent = async (courseId) => {
   const { data: modules, error: modulesError } = await supabaseAdmin
     .from('course_modules')
     .select('id, title, sort_order')
     .eq('course_id', courseId)
     .order('sort_order');
 
-  if (modulesError) return response.status(500).json({ error: 'Não foi possível carregar o conteúdo.' });
-  if (modules.length === 0) return response.json([]);
+  if (modulesError) return { error: 'Não foi possível carregar o conteúdo.' };
+  if (modules.length === 0) return { data: [] };
 
   const moduleIds = modules.map((module) => module.id);
   const { data: lessons, error: lessonsError } = await supabaseAdmin
@@ -542,7 +549,7 @@ app.get('/api/courses/:courseId/content', async (request, response) => {
     .in('module_id', moduleIds)
     .order('sort_order');
 
-  if (lessonsError) return response.status(500).json({ error: 'Não foi possível carregar as aulas.' });
+  if (lessonsError) return { error: 'Não foi possível carregar as aulas.' };
 
   const quizLessonIds = lessons.filter((lesson) => lesson.content_type === 'quiz').map((lesson) => lesson.id);
   let quizzes = [];
@@ -555,7 +562,7 @@ app.get('/api/courses/:courseId/content', async (request, response) => {
       .in('lesson_id', quizLessonIds);
     quizzes = quizzesResult.data || [];
 
-    if (quizzesResult.error) return response.status(500).json({ error: 'Não foi possível carregar os quizzes.' });
+    if (quizzesResult.error) return { error: 'Não foi possível carregar os quizzes.' };
 
     if (quizzes.length > 0) {
       const questionsResult = await supabaseAdmin
@@ -565,7 +572,7 @@ app.get('/api/courses/:courseId/content', async (request, response) => {
         .order('sort_order');
       quizQuestions = questionsResult.data || [];
 
-      if (questionsResult.error) return response.status(500).json({ error: 'Não foi possível carregar as perguntas.' });
+      if (questionsResult.error) return { error: 'Não foi possível carregar as perguntas.' };
     }
   }
 
@@ -599,11 +606,215 @@ app.get('/api/courses/:courseId/content', async (request, response) => {
     lessonsByModule.set(lesson.module_id, moduleLessons);
   });
 
-  return response.json(modules.map((module) => ({
-    id: module.id,
-    title: module.title,
-    lessons: lessonsByModule.get(module.id) || [],
-  })));
+  return {
+    data: modules.map((module) => ({
+      id: module.id,
+      title: module.title,
+      lessons: lessonsByModule.get(module.id) || [],
+    })),
+  };
+};
+
+const isOptionalUrl = (value) => {
+  if (value === null || value === undefined || value === '') return true;
+  if (typeof value !== 'string') return false;
+  try {
+    return ['http:', 'https:'].includes(new URL(value.trim()).protocol);
+  } catch {
+    return false;
+  }
+};
+
+// Valida e normaliza o conteúdo enviado pelo editor. Ids numéricos indicam
+// itens já salvos; qualquer outro valor (ids temporários do editor) indica um
+// item novo. Devolve { modules } ou { error }.
+const parseCourseContentPayload = (modules) => {
+  if (!Array.isArray(modules)) return { error: 'Conteúdo do curso inválido.' };
+
+  const seenModuleIds = new Set();
+  const seenLessonIds = new Set();
+  const normalizedModules = [];
+
+  for (const [moduleIndex, module] of modules.entries()) {
+    const moduleTitle = typeof module?.title === 'string' ? module.title.trim() : '';
+    if (!moduleTitle) return { error: `O módulo ${moduleIndex + 1} precisa de um título.` };
+    if (!Array.isArray(module.lessons)) return { error: `As aulas do módulo "${moduleTitle}" são inválidas.` };
+
+    const moduleId = Number.isInteger(module.id) && module.id > 0 ? module.id : null;
+    if (moduleId && seenModuleIds.has(moduleId)) return { error: 'Há módulos duplicados no conteúdo.' };
+    if (moduleId) seenModuleIds.add(moduleId);
+
+    const lessons = [];
+    for (const lesson of module.lessons) {
+      const title = typeof lesson?.title === 'string' ? lesson.title.trim() : '';
+      const duration = typeof lesson?.duration === 'string' ? lesson.duration.trim() : '';
+      const type = lesson?.type;
+
+      if (!title) return { error: `Há uma aula sem título no módulo "${moduleTitle}".` };
+      if (!duration) return { error: `A aula "${title}" precisa de uma duração.` };
+      if (!['video', 'quiz'].includes(type)) return { error: `A aula "${title}" tem um tipo inválido.` };
+
+      const lessonId = Number.isInteger(lesson.id) && lesson.id > 0 ? lesson.id : null;
+      if (lessonId && seenLessonIds.has(lessonId)) return { error: 'Há aulas duplicadas no conteúdo.' };
+      if (lessonId) seenLessonIds.add(lessonId);
+
+      if (type === 'video') {
+        if (!isOptionalUrl(lesson.videoUrl) || !isOptionalUrl(lesson.documentUrl)) {
+          return { error: `Os links da aula "${title}" devem começar com http:// ou https://.` };
+        }
+        lessons.push({
+          id: lessonId,
+          title,
+          duration,
+          type,
+          videoUrl: lesson.videoUrl?.trim() || null,
+          documentUrl: lesson.documentUrl?.trim() || null,
+        });
+        continue;
+      }
+
+      const passMark = Number(lesson.quizData?.passMark);
+      const questions = lesson.quizData?.questions;
+      if (!Number.isInteger(passMark) || passMark < 0 || passMark > 100) {
+        return { error: `A nota mínima do quiz "${title}" deve ser um número entre 0 e 100.` };
+      }
+      if (!Array.isArray(questions) || questions.length === 0 || !questions.every(isValidQuizQuestion)) {
+        return { error: `O quiz "${title}" precisa de perguntas com ao menos duas opções e uma resposta correta.` };
+      }
+      lessons.push({
+        id: lessonId,
+        title,
+        duration,
+        type,
+        videoUrl: null,
+        documentUrl: null,
+        quizData: {
+          passMark,
+          questions: questions.map((question) => ({
+            text: question.text.trim(),
+            options: question.options.map((option) => option.trim()),
+            correct: question.correct.trim(),
+          })),
+        },
+      });
+    }
+
+    normalizedModules.push({ id: moduleId, title: moduleTitle, lessons });
+  }
+
+  return { modules: normalizedModules };
+};
+
+app.get('/api/courses/:courseId/content', async (request, response) => {
+  const courseId = parseCourseId(request.params.courseId);
+  if (!courseId) return response.status(400).json({ error: 'Identificador de curso inválido.' });
+
+  const { data, error } = await fetchCourseContent(courseId);
+  if (error) return response.status(500).json({ error });
+  return response.json(data);
+});
+
+// Salva o conteúdo completo do curso de uma vez. A gravação acontece numa
+// função do banco (009_save_course_content.sql) para ser atômica: se algo
+// falhar no meio, nada é alterado.
+app.put('/api/courses/:courseId/content', requireAuth, requireAdmin, async (request, response) => {
+  const courseId = parseCourseId(request.params.courseId);
+  if (!courseId) return response.status(400).json({ error: 'Identificador de curso inválido.' });
+
+  const parsed = parseCourseContentPayload(request.body.modules);
+  if (parsed.error) return response.status(400).json({ error: parsed.error });
+
+  const { error: saveError } = await supabaseAdmin.rpc('save_course_content', {
+    p_course_id: courseId,
+    p_content: parsed.modules,
+  });
+
+  if (saveError) {
+    console.error('Erro ao salvar conteúdo no Supabase:', saveError.message, saveError.code || '');
+    if (saveError.code === 'P0002') return response.status(404).json({ error: 'Curso não encontrado.' });
+    return response.status(500).json({ error: 'Não foi possível salvar o conteúdo do curso.' });
+  }
+
+  const { data, error } = await fetchCourseContent(courseId);
+  if (error) return response.status(500).json({ error });
+  return response.json(data);
+});
+
+// Tipos de arquivo que o editor de conteúdo pode enviar ao Supabase Storage.
+// Os limites repetem os configurados nos buckets (010 e 011), para a API
+// recusar o envio antes de gerar a URL assinada.
+const uploadKinds = {
+  material: {
+    bucket: 'course-materials',
+    maxSize: 20 * 1024 * 1024,
+    types: new Set([
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/zip',
+      'application/x-zip-compressed',
+      'text/plain',
+      'image/png',
+      'image/jpeg',
+    ]),
+    typeError: 'Formato não permitido. Envie PDF, Word, PowerPoint, Excel, ZIP, TXT, PNG ou JPG.',
+    sizeError: 'O material deve ter no máximo 20 MB.',
+  },
+  video: {
+    bucket: 'course-videos',
+    maxSize: 50 * 1024 * 1024,
+    types: new Set(['video/mp4', 'video/webm']),
+    typeError: 'Formato não permitido. Envie um vídeo MP4 ou WebM.',
+    sizeError: 'O vídeo deve ter no máximo 50 MB. Para vídeos maiores, use um link do YouTube.',
+  },
+};
+
+const sanitizeFileName = (fileName) => fileName
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9._-]+/g, '-')
+  .replace(/-+/g, '-')
+  .replace(/^-|-$/g, '')
+  .slice(-80) || 'arquivo';
+
+// Gera uma URL assinada para o navegador enviar o arquivo direto ao Supabase
+// Storage. O arquivo não passa pela API, que na Vercel tem limite de 4,5 MB
+// por requisição.
+app.post('/api/courses/:courseId/uploads', requireAuth, requireAdmin, async (request, response) => {
+  const courseId = parseCourseId(request.params.courseId);
+  const { kind, fileName, contentType, size } = request.body;
+  const config = uploadKinds[kind];
+
+  if (!courseId || !config || !isNonEmptyString(fileName)) {
+    return response.status(400).json({ error: 'Arquivo inválido.' });
+  }
+  if (!config.types.has(contentType)) {
+    return response.status(400).json({ error: config.typeError });
+  }
+  if (!Number.isFinite(size) || size <= 0 || size > config.maxSize) {
+    return response.status(400).json({ error: config.sizeError });
+  }
+
+  const { data: course } = await supabaseAdmin.from('courses').select('id').eq('id', courseId).maybeSingle();
+  if (!course) return response.status(404).json({ error: 'Curso não encontrado.' });
+
+  const path = `cursos/${courseId}/${crypto.randomUUID()}-${sanitizeFileName(fileName)}`;
+  const storage = supabaseAdmin.storage.from(config.bucket);
+  const { data, error } = await storage.createSignedUploadUrl(path);
+
+  if (error) {
+    console.error('Erro ao gerar URL de upload no Supabase:', error.message);
+    return response.status(500).json({ error: 'Não foi possível preparar o envio do arquivo.' });
+  }
+
+  return response.json({
+    signedUrl: data.signedUrl,
+    publicUrl: storage.getPublicUrl(path).data.publicUrl,
+  });
 });
 
 app.post('/api/courses/:courseId/modules', requireAuth, requireAdmin, async (request, response) => {
@@ -678,13 +889,7 @@ app.post('/api/modules/:moduleId/lessons', requireAuth, requireAdmin, async (req
     const quizData = request.body.quizData;
     const passMark = Number(quizData?.passMark);
     const questions = quizData?.questions;
-    const validQuestions = Array.isArray(questions) && questions.length > 0 && questions.every((question) => (
-      isNonEmptyString(question.text)
-      && Array.isArray(question.options)
-      && question.options.length >= 2
-      && question.options.every(isNonEmptyString)
-      && question.options.includes(question.correct)
-    ));
+    const validQuestions = Array.isArray(questions) && questions.length > 0 && questions.every(isValidQuizQuestion);
 
     if (!Number.isInteger(passMark) || passMark < 0 || passMark > 100 || !validQuestions) {
       await supabaseAdmin.from('lessons').delete().eq('id', lesson.id);
