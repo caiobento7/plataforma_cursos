@@ -42,7 +42,7 @@ const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isEnrolled 
 
   const handleBuyNow = () => {
     addToCart(course);
-    navigateTo('cart');
+    navigateTo('checkout');
   };
 
   return (
