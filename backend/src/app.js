@@ -96,6 +96,7 @@ const enrichSupportTickets = async (tickets) => {
     adminResponse: ticket.admin_response,
     respondedAt: ticket.responded_at,
     createdAt: ticket.created_at,
+    updatedAt: ticket.updated_at,
   }));
 };
 
@@ -350,14 +351,33 @@ app.get('/api/admin/analytics', requireAuth, requireAdmin, async (_request, resp
   });
 });
 
+// Os limites repetem as restrições da tabela support_tickets (008), para a API
+// responder com uma mensagem clara em vez de um erro do banco.
+const ticketLimits = { subject: [3, 120], message: [5, 2000], response: 2000 };
+const ticketColumns = 'id, student_id, course_id, subject, message, status, admin_response, responded_at, created_at, updated_at';
+
+const sendTicket = async (response, row, status = 200) => {
+  const tickets = await enrichSupportTickets([row]);
+  if (!tickets) return response.status(500).json({ error: 'Não foi possível carregar os dados do chamado.' });
+  return response.status(status).json(tickets[0]);
+};
+
 app.post('/api/support-tickets', requireAuth, async (request, response) => {
   const { courseId, subject, message } = request.body;
   const normalizedCourseId = courseId === null || courseId === undefined ? null : parseCourseId(courseId);
   const normalizedSubject = typeof subject === 'string' ? subject.trim() : '';
   const normalizedMessage = typeof message === 'string' ? message.trim() : '';
+  const [minSubject, maxSubject] = ticketLimits.subject;
+  const [minMessage, maxMessage] = ticketLimits.message;
 
   if (!normalizedSubject || !normalizedMessage || (courseId !== null && courseId !== undefined && !normalizedCourseId)) {
     return response.status(400).json({ error: 'Preencha o assunto, a mensagem e o curso corretamente.' });
+  }
+  if (normalizedSubject.length < minSubject || normalizedSubject.length > maxSubject) {
+    return response.status(400).json({ error: `O assunto deve ter entre ${minSubject} e ${maxSubject} caracteres.` });
+  }
+  if (normalizedMessage.length < minMessage || normalizedMessage.length > maxMessage) {
+    return response.status(400).json({ error: `A mensagem deve ter entre ${minMessage} e ${maxMessage} caracteres.` });
   }
 
   const { data: profile } = await supabaseAdmin
@@ -382,7 +402,7 @@ app.post('/api/support-tickets', requireAuth, async (request, response) => {
       subject: normalizedSubject,
       message: normalizedMessage,
     })
-    .select('id, student_id, course_id, subject, message, status, admin_response, responded_at, created_at')
+    .select(ticketColumns)
     .single();
 
   if (error) {
@@ -390,14 +410,13 @@ app.post('/api/support-tickets', requireAuth, async (request, response) => {
     return response.status(500).json({ error: 'Não foi possível abrir o chamado.' });
   }
 
-  const [ticket] = await enrichSupportTickets([data]);
-  return response.status(201).json(ticket);
+  return sendTicket(response, data, 201);
 });
 
 app.get('/api/support-tickets/me', requireAuth, async (request, response) => {
   const { data, error } = await supabaseAdmin
     .from('support_tickets')
-    .select('id, student_id, course_id, subject, message, status, admin_response, responded_at, created_at')
+    .select(ticketColumns)
     .eq('student_id', request.user.id)
     .order('created_at', { ascending: false });
 
@@ -408,10 +427,32 @@ app.get('/api/support-tickets/me', requireAuth, async (request, response) => {
   return response.json(tickets);
 });
 
+// O aluno pode encerrar o próprio chamado quando o problema foi resolvido.
+app.patch('/api/support-tickets/:ticketId/close', requireAuth, async (request, response) => {
+  const ticketId = parseCourseId(request.params.ticketId);
+  if (!ticketId) return response.status(400).json({ error: 'Chamado inválido.' });
+
+  const { data, error } = await supabaseAdmin
+    .from('support_tickets')
+    .update({ status: 'closed', updated_at: new Date().toISOString() })
+    .eq('id', ticketId)
+    .eq('student_id', request.user.id)
+    .select(ticketColumns)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Erro ao encerrar chamado no Supabase:', error.message);
+    return response.status(500).json({ error: 'Não foi possível encerrar o chamado.' });
+  }
+  if (!data) return response.status(404).json({ error: 'Chamado não encontrado.' });
+
+  return sendTicket(response, data);
+});
+
 app.get('/api/admin/support-tickets', requireAuth, requireAdmin, async (_request, response) => {
   const { data, error } = await supabaseAdmin
     .from('support_tickets')
-    .select('id, student_id, course_id, subject, message, status, admin_response, responded_at, created_at')
+    .select(ticketColumns)
     .order('created_at', { ascending: false });
 
   if (error) return response.status(500).json({ error: 'Não foi possível carregar os chamados.' });
@@ -426,8 +467,25 @@ app.put('/api/admin/support-tickets/:ticketId', requireAuth, requireAdmin, async
   const status = typeof request.body.status === 'string' ? request.body.status : '';
   const adminResponse = typeof request.body.adminResponse === 'string' ? request.body.adminResponse.trim() : '';
 
-  if (!ticketId || !ticketStatuses.has(status) || (status === 'answered' && !adminResponse)) {
-    return response.status(400).json({ error: 'Informe uma resposta para concluir o chamado.' });
+  if (!ticketId || !ticketStatuses.has(status)) {
+    return response.status(400).json({ error: 'Status do chamado inválido.' });
+  }
+  if (status === 'answered' && !adminResponse) {
+    return response.status(400).json({ error: 'Escreva uma resposta antes de enviar.' });
+  }
+  if (adminResponse.length > ticketLimits.response) {
+    return response.status(400).json({ error: `A resposta deve ter no máximo ${ticketLimits.response} caracteres.` });
+  }
+
+  const { data: current } = await supabaseAdmin
+    .from('support_tickets')
+    .select('status')
+    .eq('id', ticketId)
+    .maybeSingle();
+
+  if (!current) return response.status(404).json({ error: 'Chamado não encontrado.' });
+  if (current.status === 'closed' && status !== 'open') {
+    return response.status(409).json({ error: 'Este chamado já foi encerrado.' });
   }
 
   const updates = {
@@ -445,13 +503,15 @@ app.put('/api/admin/support-tickets/:ticketId', requireAuth, requireAdmin, async
     .from('support_tickets')
     .update(updates)
     .eq('id', ticketId)
-    .select('id, student_id, course_id, subject, message, status, admin_response, responded_at, created_at')
-    .maybeSingle();
+    .select(ticketColumns)
+    .single();
 
-  if (error || !data) return response.status(404).json({ error: 'Chamado não encontrado.' });
+  if (error) {
+    console.error('Erro ao atualizar chamado no Supabase:', error.message);
+    return response.status(500).json({ error: 'Não foi possível atualizar o chamado.' });
+  }
 
-  const [ticket] = await enrichSupportTickets([data]);
-  return response.json(ticket);
+  return sendTicket(response, data);
 });
 
 app.post('/api/courses', requireAuth, requireAdmin, async (request, response) => {

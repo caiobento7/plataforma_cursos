@@ -2022,3 +2022,47 @@ html, body, #root { max-width: 100%; overflow-x: hidden; }
 .upload-progress i { display: block; height: 100%; background: var(--accent); transition: width 0.2s ease; }
 .video-player.video-embed { width: 100%; height: auto; aspect-ratio: 16 / 9; border: 0; }
 .video-player.video-unavailable { padding: 20px; text-align: center; font-size: 15px; opacity: 0.85; }
+
+/* Chamados: status, filtros e listas (aluno e backoffice). */
+.ticket-status { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.ticket-status.open { background: #fff4e0; color: #9a5b00; }
+.ticket-status.answered { background: #e7f0ff; color: #1d4ed8; }
+.ticket-status.closed { background: #eef1f5; color: #5d6c80; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinning { animation: spin .8s linear infinite; }
+
+.student-char-count { display: block; margin-top: 4px; color: #8a9aac; font-size: 11px; text-align: right; }
+.student-feedback.success { padding: 10px 12px; border-radius: 4px; background: #e9f7ef; color: #1e7a46; }
+.student-feedback.error { padding: 10px 12px; border-radius: 4px; background: #fdecea; color: #a61b1b; }
+.student-tickets-heading { align-items: center; }
+.student-tickets-heading > div { flex: 1; }
+.student-icon-button { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 1px solid #d4e0ee; border-radius: 4px; background: #fff; color: #1d4ed8; cursor: pointer; }
+.student-icon-button:disabled { cursor: default; opacity: .7; }
+.student-ticket { display: block; }
+.student-ticket-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.student-ticket span.ticket-status { font-size: 11px; }
+.student-ticket span.ticket-status.open { color: #9a5b00; }
+.student-ticket span.ticket-status.answered { color: #1d4ed8; }
+.student-ticket span.ticket-status.closed { color: #5d6c80; }
+.student-ticket-message { margin: 8px 0 0; color: #4b627c; font-size: 13px; line-height: 1.5; white-space: pre-line; }
+.student-ticket-answer { margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid #1d4ed8; background: #f1f6ff; color: #36506d; font-size: 13px; line-height: 1.45; }
+.student-ticket-answer b { color: #17324d; font-size: 12px; }
+.student-ticket-answer small { display: inline; margin: 0 0 0 6px; }
+.student-ticket-answer p { margin: 4px 0 0; white-space: pre-line; }
+.student-link-button { margin-top: 8px; padding: 0; border: 0; background: none; color: #1d4ed8; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
+.student-link-button:disabled { color: #8a9aac; cursor: default; }
+
+.sidebar-badge { margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: #dc2626; color: #fff; font-size: 11px; font-style: normal; font-weight: 700; text-align: center; }
+.ticket-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.ticket-filters button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid #d4e0ee; border-radius: 999px; background: #fff; color: #36506d; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.ticket-filters button span { min-width: 18px; padding: 0 5px; border-radius: 999px; background: #eef3f9; font-size: 11px; text-align: center; }
+.ticket-filters button.active { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
+.ticket-filters button.active span { background: rgba(255, 255, 255, .25); }
+.admin-ticket-feedback.success { padding: 10px 12px; border-radius: 4px; background: #e9f7ef; color: #1e7a46; }
+.admin-ticket-feedback.error { padding: 10px 12px; border-radius: 4px; background: #fdecea; color: #a61b1b; }
+.admin-ticket > p { white-space: pre-line; }
+.admin-ticket-existing-response small { color: #62758a; }
+.admin-ticket-existing-response p { margin: 4px 0 0; white-space: pre-line; }
+.admin-ticket-reply > div { align-items: center; }
+.admin-ticket-reply button:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+.admin-char-count { margin-left: auto; color: #8a9aac; font-size: 11px; }
