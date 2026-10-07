@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Award, CheckCircle2, PlayCircle } from 'lucide-react';
 import cursoLabMark from '../assets/cursolab-mark.png';
+import artCourseImage from '../assets/CursoLab_Fotos_Cursos/04_Python_Analise_de_Dados.png';
 import { api } from '../services/api.js';
 
 const getRecoveryLinkData = () => {
@@ -175,14 +176,40 @@ const LoginPage = ({ navigateTo, initialTab = 'login', onAuthenticated, onLoginC
     <section className="ui-auth">
       <aside className="ui-auth-brand">
         <button type="button" className="ui-logo" onClick={() => navigateTo('landing')}><img src={cursoLabMark} alt="" /><span>Curso<b>Lab</b></span></button>
-        <div>
+        {/* Ilustração decorativa feita com os próprios elementos da plataforma. */}
+        <div className="ui-auth-art" aria-hidden="true">
+          <div className="art-cert">
+            <small>CursoLab</small>
+            <b>Certificado de conclusão</b>
+            <span className="art-cert-line" />
+            <span className="art-cert-line short" />
+            <em>Caio Bento</em>
+            <span className="art-cert-seal"><Award size={16} /></span>
+          </div>
+          <div className="art-course">
+            <div className="art-course-media">
+              <img src={artCourseImage} alt="" />
+              <span><PlayCircle size={30} /></span>
+            </div>
+            <div className="art-course-body">
+              <small>Continue de onde parou</small>
+              <strong>Python para Análise de Dados</strong>
+              <div className="art-progress"><i /></div>
+              <span>5 de 8 aulas · 63%</span>
+            </div>
+          </div>
+          <div className="art-badge quiz">
+            <span><CheckCircle2 size={18} /></span>
+            <div><strong>Quiz aprovado</strong><small>Nota 9,0 · módulo liberado</small></div>
+          </div>
+          <div className="art-badge lesson">
+            <span><PlayCircle size={18} /></span>
+            <div><strong>Aula concluída</strong><small>Manipulação de dados</small></div>
+          </div>
+        </div>
+        <div className="ui-auth-copy">
           <h2>Sua próxima aula começa aqui.</h2>
           <p>Entre para continuar seus cursos, acompanhar o progresso e emitir seus certificados.</p>
-          <ul>
-            <li><CheckCircle2 size={18} aria-hidden="true" /> Aulas em vídeo e material de apoio</li>
-            <li><CheckCircle2 size={18} aria-hidden="true" /> Quizzes que liberam o próximo módulo</li>
-            <li><CheckCircle2 size={18} aria-hidden="true" /> Certificado em PDF ao concluir</li>
-          </ul>
         </div>
         <small>© {new Date().getFullYear()} CursoLab</small>
       </aside>

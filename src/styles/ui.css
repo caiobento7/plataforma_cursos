@@ -181,7 +181,6 @@ body { background: var(--ui-bg); color: var(--ui-ink); -webkit-font-smoothing: a
 .ui-auth-brand ul { display: grid; gap: 12px; margin: 28px 0 0; padding: 0; list-style: none; }
 .ui-auth-brand li { display: flex; align-items: center; gap: 10px; color: #e2ebf6; font-size: 15px; }
 .ui-auth-brand li svg { color: #60a5fa; }
-.ui-auth-brand small { color: #8aa3bf; font-size: 13px; }
 .ui-auth-main { display: flex; flex-direction: column; justify-content: center; padding: 40px 24px; }
 .ui-auth-form { width: 100%; max-width: 400px; margin: 0 auto; }
 .ui-auth-form h1 { margin: 0 0 8px; color: var(--ui-ink); font-size: 28px; font-weight: 800; letter-spacing: -.03em; }
@@ -329,7 +328,6 @@ body { background: var(--ui-bg); color: var(--ui-ink); -webkit-font-smoothing: a
   .lp-footer-grid > div:first-child { grid-column: 1 / -1; }
   .ui-auth { grid-template-columns: 1fr; }
   .ui-auth-brand { padding: 28px 24px; }
-  .ui-auth-brand h2, .ui-auth-brand > div > p, .ui-auth-brand ul, .ui-auth-brand small { display: none; }
   .ui-auth-back { position: static; align-self: flex-end; margin-bottom: 16px; }
   .ui-detail, .ui-cart { grid-template-columns: 1fr; }
   .ui-buy, .ui-summary { position: static; }
@@ -786,4 +784,60 @@ body { background: var(--ui-bg); color: var(--ui-ink); -webkit-font-smoothing: a
   .co-receipt { grid-template-columns: 1fr; }
   .co-receipt div + div { border-top: 1px solid var(--ui-line); border-left: 0; }
   .co-success-courses li { flex-wrap: wrap; }
+}
+
+/* Login: ilustração do painel da marca ------------------------------------ */
+.ui-auth-brand::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, .05) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .05) 1px, transparent 1px); background-size: 44px 44px; mask-image: radial-gradient(ellipse at 55% 45%, #000 0%, transparent 72%); pointer-events: none; }
+.ui-auth-brand::after { content: ''; position: absolute; bottom: -160px; left: -120px; width: 420px; height: 420px; border-radius: 50%; background: radial-gradient(circle, rgba(37, 99, 235, .45), transparent 65%); pointer-events: none; }
+.ui-auth-brand > * { position: relative; z-index: 1; }
+.ui-auth-brand > small { color: #8aa3bf; font-size: 13px; }
+.ui-auth-copy h2 { margin-bottom: 12px; font-size: 34px; }
+
+.ui-auth-art { position: relative; width: 100%; max-width: 560px; height: 420px; margin: 0 auto; color: var(--ui-ink); }
+.ui-auth-art small, .ui-auth-art strong, .ui-auth-art span, .ui-auth-art b, .ui-auth-art em { display: block; }
+
+.art-cert { position: absolute; top: 0; right: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 240px; aspect-ratio: 1.414; padding: 16px; background: #f7f9fc; box-shadow: inset 0 0 0 3px #102a43, inset 0 0 0 7px #f7f9fc, inset 0 0 0 8px #2563eb, 0 24px 48px -18px rgba(0, 0, 0, .55); transform: rotate(7deg); animation: art-float 7s ease-in-out infinite; animation-delay: -2s; }
+.art-cert small { color: #2563eb; font-size: 7px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.art-cert b { color: #102a43; font-size: 10px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.art-cert-line { width: 62%; height: 5px; margin-top: 4px; background: #dbe4f0; }
+.art-cert-line.short { width: 40%; margin-top: 0; }
+.art-cert em { margin-top: 6px; color: #1e3a8a; font-family: 'Great Vibes', cursive; font-size: 22px; font-style: normal; line-height: 1; }
+.art-cert-seal { position: absolute; right: 16px; bottom: 14px; display: grid !important; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #f59e0b; color: #fff; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .85); }
+
+.art-course { position: absolute; top: 64px; left: 0; width: 330px; overflow: hidden; background: #fff; box-shadow: 0 34px 60px -20px rgba(0, 0, 0, .6); transform: rotate(-3deg); animation: art-float 8s ease-in-out infinite; }
+.art-course-media { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #0f1f33; }
+.art-course-media img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center top; opacity: .9; }
+.art-course-media span { position: absolute; top: 50%; left: 50%; display: grid !important; place-items: center; width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 255, 255, .95); color: #2563eb; box-shadow: 0 8px 20px rgba(0, 0, 0, .3); transform: translate(-50%, -50%); }
+.art-course-body { display: grid; gap: 6px; padding: 14px 16px 16px; }
+.art-course-body small { color: #2563eb; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.art-course-body strong { color: #0f1f33; font-size: 15px; }
+.art-course-body span { color: #5b6b80; font-size: 12px; }
+.art-progress { height: 6px; background: #e6edf6; }
+.art-progress i { display: block; width: 63%; height: 100%; background: #2563eb; }
+
+.art-badge { position: absolute; display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #fff; box-shadow: 0 18px 36px -12px rgba(0, 0, 0, .5); animation: art-float 6s ease-in-out infinite; }
+.art-badge > span { display: grid !important; flex-shrink: 0; place-items: center; width: 34px; height: 34px; border-radius: 50%; }
+.art-badge strong { color: #0f1f33; font-size: 13px; }
+.art-badge small { color: #5b6b80; font-size: 11px; }
+.art-badge.quiz { top: 246px; right: 0; animation-delay: -1s; }
+.art-badge.quiz > span { background: #e9f7ef; color: #16a34a; }
+.art-badge.lesson { bottom: 0; left: 168px; animation-delay: -4s; }
+.art-badge.lesson > span { background: #eff5ff; color: #2563eb; }
+@keyframes art-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -10px; } }
+
+@media (max-height: 820px) {
+  .ui-auth-art { margin: -36px auto; transform: scale(.82); transform-origin: center; }
+}
+
+@media (max-width: 1200px) {
+  .ui-auth-brand { padding: 36px 40px; }
+  .ui-auth-art { transform: scale(.82); transform-origin: center; }
+}
+
+@media (max-width: 900px) {
+  .ui-auth-art, .ui-auth-copy, .ui-auth-brand > small { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art-cert, .art-course, .art-badge, .lp-float { animation: none; }
 }
