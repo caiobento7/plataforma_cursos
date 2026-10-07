@@ -47,7 +47,6 @@ const App = () => {
   const [purchasedCourses, setPurchasedCourses] = useState([]);
   const [coursesContentDB, setCoursesContentDB] = useState({});
   const [courseProgress, setCourseProgress] = useState({});
-  const [questionsDB] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   // Com uma sessão salva, espera o perfil chegar antes de decidir a tela, para
   // quem já está logado não ver a landing piscar.
@@ -333,7 +332,7 @@ const App = () => {
         ? renderAdminDashboard()
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
       case 'details': return <CourseDetailsPage navigateTo={navigateTo} course={selectedCourse} content={selectedContent} addToCart={addToCart} isEnrolled={enrolledCourseIds.includes(selectedCourseId)} isInCart={cart.some((course) => course.id === selectedCourseId)} />;
-      case 'player': return <LessonPlayerPage navigateTo={navigateTo} courseId={selectedCourseId} content={selectedContent} progress={courseProgress[selectedCourseId]} onProgressUpdate={handleProgressUpdate} questions={questionsDB} onAskQuestion={() => {}} />;
+      case 'player': return <LessonPlayerPage navigateTo={navigateTo} course={selectedCourse} courseId={selectedCourseId} content={selectedContent} progress={courseProgress[selectedCourseId]} onProgressUpdate={handleProgressUpdate} />;
       case 'dashboard': return currentUser?.role === 'admin'
         ? renderAdminDashboard()
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;

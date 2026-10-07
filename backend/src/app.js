@@ -1129,6 +1129,9 @@ app.post('/api/lessons/:lessonId/questions', requireAuth, async (request, respon
   const text = typeof request.body.text === 'string' ? request.body.text.trim() : '';
 
   if (!lessonId || !text) return response.status(400).json({ error: 'Pergunta inválida.' });
+  if (text.length < 5 || text.length > 1000) {
+    return response.status(400).json({ error: 'A dúvida deve ter entre 5 e 1000 caracteres.' });
+  }
   const context = await getLessonContext(lessonId);
   if (!context) return response.status(404).json({ error: 'Aula não encontrada.' });
   if (!await hasCourseAccess(context.courseId, request.user.id)) {
@@ -1150,6 +1153,9 @@ app.patch('/api/questions/:questionId/answer', requireAuth, requireAdmin, async 
   const answer = typeof request.body.answer === 'string' ? request.body.answer.trim() : '';
   if (!Number.isInteger(questionId) || questionId <= 0 || !answer) {
     return response.status(400).json({ error: 'Resposta inválida.' });
+  }
+  if (answer.length > 2000) {
+    return response.status(400).json({ error: 'A resposta deve ter no máximo 2000 caracteres.' });
   }
 
   const { data: question, error: questionError } = await supabaseAdmin
@@ -1173,6 +1179,62 @@ app.patch('/api/questions/:questionId/answer', requireAuth, requireAdmin, async 
 
   if (error) return response.status(400).json({ error: 'Não foi possível salvar a resposta.' });
   return response.json(data);
+});
+
+// Todas as dúvidas das aulas, para o backoffice: com curso, aula, autor e a
+// resposta, se houver. As sem resposta vêm primeiro.
+app.get('/api/admin/lesson-questions', requireAuth, requireAdmin, async (_request, response) => {
+  const { data: questions, error } = await supabaseAdmin
+    .from('lesson_questions')
+    .select('id, lesson_id, author_id, question_text, answer_text, answered_by, answered_at, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) return response.status(500).json({ error: 'Não foi possível carregar as dúvidas.' });
+  if (questions.length === 0) return response.json([]);
+
+  const lessonIds = [...new Set(questions.map((question) => question.lesson_id))];
+  const profileIds = [...new Set(questions.flatMap((question) => [question.author_id, question.answered_by]).filter(Boolean))];
+  const [lessonsResult, profilesResult] = await Promise.all([
+    supabaseAdmin.from('lessons').select('id, title, module_id').in('id', lessonIds),
+    supabaseAdmin.from('profiles').select('id, full_name').in('id', profileIds),
+  ]);
+  if (lessonsResult.error || profilesResult.error) {
+    return response.status(500).json({ error: 'Não foi possível carregar os dados das dúvidas.' });
+  }
+
+  const moduleIds = [...new Set(lessonsResult.data.map((lesson) => lesson.module_id))];
+  const { data: modules, error: modulesError } = await supabaseAdmin.from('course_modules').select('id, course_id').in('id', moduleIds);
+  if (modulesError) return response.status(500).json({ error: 'Não foi possível carregar os dados das dúvidas.' });
+
+  const courseIds = [...new Set(modules.map((module) => module.course_id))];
+  const { data: courses, error: coursesError } = await supabaseAdmin.from('courses').select('id, title').in('id', courseIds);
+  if (coursesError) return response.status(500).json({ error: 'Não foi possível carregar os dados das dúvidas.' });
+
+  const lessons = new Map(lessonsResult.data.map((lesson) => [lesson.id, lesson]));
+  const courseByModule = new Map(modules.map((module) => [module.id, module.course_id]));
+  const courseTitles = new Map(courses.map((course) => [course.id, course.title]));
+  const names = new Map(profilesResult.data.map((profile) => [profile.id, profile.full_name]));
+
+  const result = questions.map((question) => {
+    const lesson = lessons.get(question.lesson_id);
+    return {
+      id: question.id,
+      lessonId: question.lesson_id,
+      lessonTitle: lesson?.title || 'Aula removida',
+      courseTitle: courseTitles.get(courseByModule.get(lesson?.module_id)) || 'Curso removido',
+      author: names.get(question.author_id) || 'Aluno',
+      text: question.question_text,
+      createdAt: question.created_at,
+      answer: question.answer_text ? {
+        text: question.answer_text,
+        author: names.get(question.answered_by) || 'Instrutor',
+        date: question.answered_at,
+      } : null,
+    };
+  });
+
+  result.sort((a, b) => Number(Boolean(a.answer)) - Number(Boolean(b.answer)));
+  return response.json(result);
 });
 
 app.post('/api/enrollments', requireAuth, async (request, response) => {
