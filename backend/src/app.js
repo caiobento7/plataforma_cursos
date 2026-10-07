@@ -35,8 +35,13 @@ const parseCoursePayload = (body) => {
   const requestedLevel = typeof body.level === 'string' ? body.level.trim() : '';
   const level = requestedLevel ? validLevels.get(normalizeLevel(requestedLevel)) : null;
   const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : null;
+  const hasAccessMonths = body.accessMonths !== undefined && body.accessMonths !== null && body.accessMonths !== '';
+  const accessMonths = Number(body.accessMonths);
 
   if (!title || !Number.isFinite(price) || price < 0 || !level) {
+    return null;
+  }
+  if (hasAccessMonths && (!Number.isInteger(accessMonths) || accessMonths < 1 || accessMonths > 36)) {
     return null;
   }
 
@@ -45,6 +50,8 @@ const parseCoursePayload = (body) => {
     price,
     level,
     image_url: imageUrl || null,
+    // Sem o campo, o banco usa o padrão de 6 meses (e a edição mantém o atual).
+    ...(hasAccessMonths ? { access_months: accessMonths } : {}),
   };
 };
 
@@ -138,9 +145,24 @@ const getLessonContext = async (lessonId) => {
   return { lessonId: lesson.id, moduleId: module.id, courseId: module.course_id, contentType: lesson.content_type };
 };
 
+const isExpired = (expiresAt) => Boolean(expiresAt) && new Date(expiresAt) <= new Date();
+
+// Acesso às aulas: administrador ou aluno com matrícula dentro do prazo.
 const hasCourseAccess = async (courseId, userId) => {
   if (await canManageCourse(courseId, userId)) return true;
 
+  const { data } = await supabaseAdmin
+    .from('enrollments')
+    .select('id, expires_at')
+    .eq('course_id', courseId)
+    .eq('student_id', userId)
+    .maybeSingle();
+
+  return Boolean(data) && !isExpired(data.expires_at);
+};
+
+// Vínculo com o curso, mesmo com o acesso expirado (chamados de suporte).
+const isEnrolledInCourse = async (courseId, userId) => {
   const { data } = await supabaseAdmin
     .from('enrollments')
     .select('id')
@@ -361,7 +383,7 @@ app.post('/api/auth/change-password', requireAuth, async (request, response) => 
 app.get('/api/courses', async (_request, response) => {
   const { data, error } = await supabaseAdmin
     .from('courses')
-    .select('id, title, price, level, image_url, instructor_id, rating, review_count, enrollment_count, revenue_30d, new_students_30d, created_at')
+    .select('id, title, price, level, image_url, instructor_id, rating, review_count, enrollment_count, revenue_30d, new_students_30d, access_months, created_at')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -447,7 +469,7 @@ app.post('/api/support-tickets', requireAuth, async (request, response) => {
     return response.status(403).json({ error: 'Apenas alunos podem abrir chamados.' });
   }
 
-  if (normalizedCourseId && !await hasCourseAccess(normalizedCourseId, request.user.id)) {
+  if (normalizedCourseId && !await isEnrolledInCourse(normalizedCourseId, request.user.id)) {
     return response.status(403).json({ error: 'Você não possui matrícula neste curso.' });
   }
 
@@ -576,14 +598,14 @@ app.post('/api/courses', requireAuth, requireAdmin, async (request, response) =>
 
   if (!course) {
     return response.status(400).json({
-      error: 'Informe título, preço não negativo e nível (Iniciante, Intermediário ou Avançado).',
+      error: 'Informe título, preço não negativo, nível (Iniciante, Intermediário ou Avançado) e prazo de acesso entre 1 e 36 meses.',
     });
   }
 
   const { data, error } = await supabaseAdmin
     .from('courses')
     .insert({ ...course, instructor_id: request.user.id })
-    .select('id, title, price, level, image_url, instructor_id, rating, review_count, enrollment_count, revenue_30d, new_students_30d, created_at')
+    .select('id, title, price, level, image_url, instructor_id, rating, review_count, enrollment_count, revenue_30d, new_students_30d, access_months, created_at')
     .single();
 
   if (error) {
@@ -606,7 +628,7 @@ app.put('/api/courses/:courseId', requireAuth, requireAdmin, async (request, res
     .from('courses')
     .update(course)
     .eq('id', courseId)
-    .select('id, title, price, level, image_url, instructor_id, rating, review_count, enrollment_count, revenue_30d, new_students_30d, created_at')
+    .select('id, title, price, level, image_url, instructor_id, rating, review_count, enrollment_count, revenue_30d, new_students_30d, access_months, created_at')
     .maybeSingle();
 
   if (error) {
@@ -1326,10 +1348,42 @@ app.post('/api/enrollments', requireAuth, async (request, response) => {
     return response.status(400).json({ error: 'courseId deve ser um número inteiro válido.' });
   }
 
+  const { data: course } = await supabaseAdmin.from('courses').select('id, access_months').eq('id', courseId).maybeSingle();
+  if (!course) return response.status(404).json({ error: 'Curso não encontrado.' });
+
+  const expiresAt = new Date();
+  expiresAt.setMonth(expiresAt.getMonth() + (course.access_months || 6));
+
+  const { data: existing } = await supabaseAdmin
+    .from('enrollments')
+    .select('id, expires_at')
+    .eq('student_id', request.user.id)
+    .eq('course_id', courseId)
+    .maybeSingle();
+
+  if (existing && !isExpired(existing.expires_at)) {
+    return response.status(409).json({ error: 'Você já está matriculado neste curso.' });
+  }
+
+  // Acesso expirado: a renovação estende o prazo e mantém o progresso.
+  if (existing) {
+    const { data, error } = await supabaseAdmin
+      .from('enrollments')
+      .update({ expires_at: expiresAt.toISOString() })
+      .eq('id', existing.id)
+      .select('id, student_id, course_id, enrolled_at, expires_at')
+      .single();
+    if (error) {
+      console.error('Erro ao renovar matrícula no Supabase:', error.message);
+      return response.status(400).json({ error: 'Não foi possível renovar o acesso.' });
+    }
+    return response.json({ ...data, renewed: true });
+  }
+
   const { data, error } = await supabaseAdmin
     .from('enrollments')
-    .insert({ student_id: request.user.id, course_id: courseId })
-    .select('id, student_id, course_id, enrolled_at')
+    .insert({ student_id: request.user.id, course_id: courseId, expires_at: expiresAt.toISOString() })
+    .select('id, student_id, course_id, enrolled_at, expires_at')
     .single();
 
   if (error?.code === '23505') {
@@ -1512,7 +1566,8 @@ app.get('/api/enrollments/me', requireAuth, async (request, response) => {
       enrolled_at,
       last_lesson_id,
       last_accessed_at,
-      course:courses (id, title, price, level, image_url, rating, review_count, enrollment_count)
+      expires_at,
+      course:courses (id, title, price, level, image_url, rating, review_count, enrollment_count, access_months)
     `)
     .eq('student_id', request.user.id)
     .order('enrolled_at', { ascending: false });
@@ -1532,6 +1587,7 @@ app.get('/api/enrollments/me', requireAuth, async (request, response) => {
   return response.json(enrollments.map((enrollment) => ({
     id: enrollment.id,
     enrolled_at: enrollment.enrolled_at,
+    expires_at: enrollment.expires_at,
     course: enrollment.course,
     progress: toProgressResponse(progress.get(enrollment.course.id)),
   })));
@@ -1547,6 +1603,17 @@ app.put('/api/courses/:courseId/last-lesson', requireAuth, async (request, respo
   const context = await getLessonContext(lessonId);
   if (!context || context.courseId !== courseId) {
     return response.status(404).json({ error: 'Aula não encontrada neste curso.' });
+  }
+
+  const { data: enrollment } = await supabaseAdmin
+    .from('enrollments')
+    .select('expires_at')
+    .eq('student_id', request.user.id)
+    .eq('course_id', courseId)
+    .maybeSingle();
+  if (!enrollment) return response.status(404).json({ error: 'Você não está matriculado neste curso.' });
+  if (isExpired(enrollment.expires_at)) {
+    return response.status(403).json({ error: 'Seu acesso a este curso expirou. Renove para continuar.' });
   }
 
   const { data, error } = await supabaseAdmin

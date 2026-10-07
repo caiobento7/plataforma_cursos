@@ -240,7 +240,7 @@ const ProfessorDashboardPage = ({ navigateTo, handleCreateCourse, allCourses, an
                 <img src={course.imageUrl} alt="" />
                 <div className="bo-course-info">
                   <strong>{course.title}</strong>
-                  <small>{course.level} · {formatPrice(course.price)} · {course.enrollmentCount.toLocaleString('pt-BR')} alunos · <Star size={12} fill="currentColor" aria-hidden="true" /> {formatRating(course.rating)}</small>
+                  <small>{course.level} · {formatPrice(course.price)} · acesso de {course.accessMonths} meses · {course.enrollmentCount.toLocaleString('pt-BR')} alunos · <Star size={12} fill="currentColor" aria-hidden="true" /> {formatRating(course.rating)}</small>
                 </div>
                 <div className="bo-course-actions">
                   <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => navigateTo('courseEditor', course.id)}><Layers size={15} aria-hidden="true" /> Conteúdo</button>

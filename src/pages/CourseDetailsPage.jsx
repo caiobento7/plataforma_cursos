@@ -1,5 +1,5 @@
-import { ArrowLeft, Award, CheckCircle2, ChevronDown, Clock, ListChecks, MonitorSmartphone, PlayCircle, Star } from 'lucide-react';
-import { formatPrice, formatRating } from '../utils/courseUtils.js';
+import { ArrowLeft, Award, CalendarClock, CheckCircle2, ChevronDown, Clock, ListChecks, MonitorSmartphone, PlayCircle, Star } from 'lucide-react';
+import { formatDate, formatPrice, formatRating, getAccessInfo } from '../utils/courseUtils.js';
 
 // Converte as durações livres das aulas ("15 min", "1h 30min") em minutos.
 const durationMinutes = (duration) => {
@@ -19,7 +19,7 @@ const formatTotalDuration = (minutes) => {
 // "Módulo 1: Introdução" -> "Introdução"
 const moduleTopic = (title) => title.replace(/^m[óo]dulo\s*\d+\s*[:.-]\s*/i, '');
 
-const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isEnrolled = false, isInCart = false }) => {
+const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isEnrolled = false, enrollment = null, isInCart = false }) => {
   if (!course) {
     return (
       <section className="ui-page">
@@ -39,6 +39,7 @@ const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isEnrolled 
   const quizCount = lessons.filter((lesson) => lesson.type === 'quiz').length;
   const totalMinutes = lessons.reduce((total, lesson) => total + durationMinutes(lesson.duration), 0);
   const isLoadingContent = content === undefined;
+  const isExpired = Boolean(enrollment) && getAccessInfo(enrollment.expiresAt).expired;
 
   const handleBuyNow = () => {
     addToCart(course);
@@ -115,13 +116,15 @@ const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isEnrolled 
               {isEnrolled ? (
                 <>
                   <span className="ui-buy-price free">Você já está matriculado</span>
+                  {enrollment?.expiresAt && <span className="ui-buy-note">Acesso até {formatDate(enrollment.expiresAt)}</span>}
                   <button type="button" className="ui-btn ui-btn-primary ui-btn-lg ui-btn-block" onClick={() => navigateTo('player', course.id)}>Ir para o curso</button>
                 </>
               ) : (
                 <>
+                  {isExpired && <p className="ui-alert">Seu acesso expirou em {formatDate(enrollment.expiresAt)}. Renove para continuar de onde parou.</p>}
                   <span className={`ui-buy-price ${course.price === 0 ? 'free' : ''}`}>{formatPrice(course.price)}</span>
                   <button type="button" className="ui-btn ui-btn-primary ui-btn-lg ui-btn-block" onClick={handleBuyNow}>
-                    {course.price === 0 ? 'Matricular-se grátis' : 'Comprar agora'}
+                    {isExpired ? 'Renovar acesso' : course.price === 0 ? 'Matricular-se grátis' : 'Comprar agora'}
                   </button>
                   {isInCart ? (
                     <button type="button" className="ui-btn ui-btn-secondary ui-btn-block" onClick={() => navigateTo('cart')}>Ver carrinho</button>
@@ -133,6 +136,7 @@ const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isEnrolled 
               <ul>
                 {lessons.length > 0 && <li><PlayCircle size={17} aria-hidden="true" /> {lessons.length} aulas{totalMinutes > 0 ? ` · ${formatTotalDuration(totalMinutes)}` : ''}</li>}
                 {quizCount > 0 && <li><ListChecks size={17} aria-hidden="true" /> {quizCount} {quizCount === 1 ? 'quiz' : 'quizzes'} com nota mínima</li>}
+                <li><CalendarClock size={17} aria-hidden="true" /> Acesso por {course.accessMonths} meses</li>
                 <li><Award size={17} aria-hidden="true" /> Certificado de conclusão em PDF</li>
                 <li><Clock size={17} aria-hidden="true" /> Estude no seu ritmo</li>
                 <li><MonitorSmartphone size={17} aria-hidden="true" /> Acesso pelo computador e celular</li>

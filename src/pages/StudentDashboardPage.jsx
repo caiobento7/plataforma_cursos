@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CheckCircle2, Eye, EyeOff, GraduationCap, Lock, PlayCircle, RefreshCw } from 'lucide-react';
+import { ArrowRight, CalendarClock, CheckCircle2, Eye, EyeOff, GraduationCap, Lock, PlayCircle, RefreshCw } from 'lucide-react';
 import { api } from '../services/api.js';
 import { downloadCertificatePdf } from '../utils/certificatePdf.js';
+import { formatDate, getAccessInfo } from '../utils/courseUtils.js';
 import { formatTicketDate, ticketLimits, ticketStatusLabels } from '../utils/ticketUtils.js';
 
 const certificateMinProgress = 60;
@@ -50,7 +51,16 @@ const CertificatePaper = ({ courseTitle, studentName, locked }) => (
   </div>
 );
 
-const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onProfileUpdated }) => {
+// Linha de prazo exibida em cada curso.
+const AccessLine = ({ expiresAt }) => {
+  if (!expiresAt) return null;
+  const access = getAccessInfo(expiresAt);
+  if (access.expired) return <span className="st-access expired"><Lock size={13} aria-hidden="true" /> Acesso expirou em {formatDate(expiresAt)}</span>;
+  if (access.expiresSoon) return <span className="st-access soon"><CalendarClock size={13} aria-hidden="true" /> Expira em {access.daysLeft} {access.daysLeft === 1 ? 'dia' : 'dias'}</span>;
+  return <span className="st-access"><CalendarClock size={13} aria-hidden="true" /> Acesso até {formatDate(expiresAt)}</span>;
+};
+
+const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onProfileUpdated, onRenewCourse }) => {
   const [activeTab, setActiveTab] = useState('courses');
 
   // Certificados
@@ -87,12 +97,13 @@ const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onPro
       const { lastAccessedAt, lastCompletedAt } = getProgress(course);
       return [lastAccessedAt, lastCompletedAt].filter(Boolean).sort().pop() || '';
     };
-    const active = purchasedCourses
+    const available = purchasedCourses.filter((course) => !getAccessInfo(course.expiresAt).expired);
+    const active = available
       .filter((course) => getProgress(course).percent < 100 && lastActivity(course))
       .sort((a, b) => lastActivity(b).localeCompare(lastActivity(a)));
     return {
-      spotlight: active[0] || purchasedCourses.find((course) => getProgress(course).percent === 0) || null,
-      inProgressCount: purchasedCourses.filter((course) => getProgress(course).percent > 0 && getProgress(course).percent < 100).length,
+      spotlight: active[0] || available.find((course) => getProgress(course).percent === 0) || null,
+      inProgressCount: available.filter((course) => getProgress(course).percent > 0 && getProgress(course).percent < 100).length,
     };
   }, [purchasedCourses]);
   const certificatesAvailable = purchasedCourses.filter((course) => getProgress(course).certificateAvailable).length;
@@ -287,8 +298,9 @@ const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onPro
           {purchasedCourses.map((course) => {
             const progress = getProgress(course);
             const isDone = progress.percent >= 100;
+            const isExpired = getAccessInfo(course.expiresAt).expired;
             return (
-              <article key={course.id} className="ui-course">
+              <article key={course.id} className={`ui-course ${isExpired ? 'st-expired' : ''}`}>
                 <button type="button" className="ui-course-media" onClick={() => navigateTo('player', course.id)} aria-label={`${courseAction(progress.percent)} ${course.title}`}>
                   <img src={course.imageUrl} alt="" loading="lazy" />
                 </button>
@@ -298,12 +310,15 @@ const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onPro
                     <span>{progress.totalLessons > 0 ? `${progress.completedLessons}/${progress.totalLessons} aulas` : 'Em preparação'}</span>
                   </div>
                   <h3>{course.title}</h3>
+                  <AccessLine expiresAt={course.expiresAt} />
                   <ProgressBar percent={progress.percent} />
                   <div className="ui-course-footer">
                     {isDone
                       ? <span className="st-done"><CheckCircle2 size={15} aria-hidden="true" /> Concluído</span>
                       : <span className="st-percent">{progress.percent}% concluído</span>}
-                    <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => navigateTo('player', course.id)}>{courseAction(progress.percent)}</button>
+                    {isExpired
+                      ? <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => onRenewCourse(course)}>Renovar acesso</button>
+                      : <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => navigateTo('player', course.id)}>{courseAction(progress.percent)}</button>}
                   </div>
                 </div>
               </article>
@@ -345,7 +360,9 @@ const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onPro
                           ? 'O curso ainda não tem aulas publicadas'
                           : `${progress.percent}% concluído · ${lessonsNeeded === 1 ? 'falta 1 aula' : `faltam ${lessonsNeeded} aulas`}`}
                       </span>
-                      <button type="button" className="ui-btn ui-btn-secondary ui-btn-block" onClick={() => navigateTo('player', course.id)}>Continuar estudando</button>
+                      {getAccessInfo(course.expiresAt).expired
+                        ? <button type="button" className="ui-btn ui-btn-primary ui-btn-block" onClick={() => onRenewCourse(course)}>Renovar acesso para concluir</button>
+                        : <button type="button" className="ui-btn ui-btn-secondary ui-btn-block" onClick={() => navigateTo('player', course.id)}>Continuar estudando</button>}
                     </>
                   )}
                 </div>

@@ -15,6 +15,7 @@ import ProfessorDashboardPage from './pages/ProfessorDashboardPage.jsx';
 import StudentDashboardPage from './pages/StudentDashboardPage.jsx';
 import { courseImages } from './data/courseImages.js';
 import { api, hasStoredSession, setAccessToken } from './services/api.js';
+import { getAccessInfo } from './utils/courseUtils.js';
 
 const toCourse = (course) => ({
   id: course.id,
@@ -26,6 +27,7 @@ const toCourse = (course) => ({
   rating: Number.isFinite(Number(course.rating)) ? Number(course.rating) : 0,
   reviewCount: Number(course.review_count || course.reviewCount) || 0,
   enrollmentCount: Number(course.enrollment_count || course.enrollmentCount) || 0,
+  accessMonths: Number(course.access_months || course.accessMonths) || 6,
   imageUrl: courseImages[course.title] || course.imageUrl || course.image_url || 'https://placehold.co/600x400/1e293b/ffffff?text=Curso',
 });
 
@@ -74,6 +76,7 @@ const App = () => {
       setPurchasedCourses(enrollments.map((enrollment) => ({
         ...toCourse(enrollment.course),
         enrolledAt: enrollment.enrolled_at,
+        expiresAt: enrollment.expires_at,
         progress: enrollment.progress,
       })));
     } catch (error) {
@@ -83,6 +86,10 @@ const App = () => {
 
   // undefined = carregando, null = falha ao carregar. O editor de conteúdo usa
   // essa diferença para não salvar uma lista vazia por cima do curso.
+  // Cursos com acesso dentro do prazo. Os expirados podem ser comprados de novo
+  // para renovar o acesso.
+  const activeCourseIds = purchasedCourses.filter((course) => !getAccessInfo(course.expiresAt).expired).map((course) => course.id);
+
   const loadCourseContent = useCallback(async (courseId) => {
     try {
       const content = await api.getCourseContent(courseId);
@@ -180,7 +187,7 @@ const App = () => {
 
     if (profile.role === 'student' && checkoutCourse) {
       setPendingCheckoutCourseId(null);
-      setCart((previous) => previous.some((course) => course.id === checkoutCourse.id) || purchasedCourses.some((course) => course.id === checkoutCourse.id)
+      setCart((previous) => previous.some((course) => course.id === checkoutCourse.id) || activeCourseIds.includes(checkoutCourse.id)
         ? previous
         : [...previous, checkoutCourse]);
       setCurrentPage('cart');
@@ -216,10 +223,17 @@ const App = () => {
       return false;
     }
 
-    if (!cart.some((item) => item.id === course.id) && !purchasedCourses.some((item) => item.id === course.id)) {
+    if (!cart.some((item) => item.id === course.id) && !activeCourseIds.includes(course.id)) {
       setCart((previous) => [...previous, course]);
     }
     return true;
+  };
+
+  // Renovação: o curso com acesso expirado vai para o carrinho e o aluno segue
+  // direto para o pagamento.
+  const renewCourse = (course) => {
+    addToCart(allCourses.find((item) => item.id === course.id) || course);
+    navigateTo('checkout');
   };
 
   // Confirma o pedido do checkout: matricula o aluno em cada curso do carrinho.
@@ -324,7 +338,8 @@ const App = () => {
     return filters.rating === 'all' || course.rating >= Number(filters.rating);
   }), [allCourses, filters, searchTerm]);
 
-  const enrolledCourseIds = purchasedCourses.map((course) => course.id);
+  const enrolledCourseIds = activeCourseIds;
+  const selectedEnrollment = purchasedCourses.find((course) => course.id === selectedCourseId);
   const selectedCourse = allCourses.find((course) => course.id === selectedCourseId);
   const selectedContent = coursesContentDB[selectedCourseId];
   const renderAdminDashboard = () => <ProfessorDashboardPage navigateTo={navigateTo} handleCreateCourse={handleCreateCourse} allCourses={allCourses} analytics={adminAnalytics} handleDeleteCourse={handleDeleteCourse} activeTab={currentPageData} />;
@@ -338,8 +353,8 @@ const App = () => {
       case 'home': return currentUser?.role === 'admin'
         ? renderAdminDashboard()
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
-      case 'details': return <CourseDetailsPage navigateTo={navigateTo} course={selectedCourse} content={selectedContent} addToCart={addToCart} isEnrolled={enrolledCourseIds.includes(selectedCourseId)} isInCart={cart.some((course) => course.id === selectedCourseId)} />;
-      case 'player': return <LessonPlayerPage navigateTo={navigateTo} course={selectedCourse} courseId={selectedCourseId} content={selectedContent} progress={courseProgress[selectedCourseId]} onProgressUpdate={handleProgressUpdate} />;
+      case 'details': return <CourseDetailsPage navigateTo={navigateTo} course={selectedCourse} content={selectedContent} addToCart={addToCart} isEnrolled={enrolledCourseIds.includes(selectedCourseId)} enrollment={selectedEnrollment} isInCart={cart.some((course) => course.id === selectedCourseId)} />;
+      case 'player': return <LessonPlayerPage navigateTo={navigateTo} course={selectedCourse} courseId={selectedCourseId} content={selectedContent} progress={courseProgress[selectedCourseId]} onProgressUpdate={handleProgressUpdate} accessExpiredAt={selectedEnrollment && getAccessInfo(selectedEnrollment.expiresAt).expired ? selectedEnrollment.expiresAt : null} onRenew={renewCourse} />;
       case 'dashboard': return currentUser?.role === 'admin'
         ? renderAdminDashboard()
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
@@ -352,7 +367,7 @@ const App = () => {
         ? <EnrollmentSuccessPage courses={recentlyPurchasedCourses} order={lastOrder} navigateTo={navigateTo} />
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
       case 'studentDashboard': return currentUser?.role === 'student'
-        ? <StudentDashboardPage navigateTo={navigateTo} purchasedCourses={purchasedCourses} currentUser={currentUser} onProfileUpdated={setCurrentUser} />
+        ? <StudentDashboardPage navigateTo={navigateTo} purchasedCourses={purchasedCourses} currentUser={currentUser} onProfileUpdated={setCurrentUser} onRenewCourse={renewCourse} />
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
       default: return <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
     }

@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Award, CheckCircle2, Download, FileText, ListChe
 import QuizComponent from '../components/QuizComponent.jsx';
 import QuestionArea from '../components/QuestionArea.jsx';
 import { api } from '../services/api.js';
-import { calculateProgress, getVideoEmbedUrl } from '../utils/courseUtils.js';
+import { calculateProgress, formatDate, getVideoEmbedUrl } from '../utils/courseUtils.js';
 
 // Um módulo está concluído quando todos os quizzes dele foram aprovados; sem
 // quiz, quando todas as aulas de vídeo foram concluídas.
@@ -13,7 +13,7 @@ const isModuleComplete = (module, completedLessons) => {
   return required.every((lesson) => completedLessons.has(lesson.id));
 };
 
-const LessonPlayerPage = ({ navigateTo, course, courseId, content, progress, onProgressUpdate }) => {
+const LessonPlayerPage = ({ navigateTo, course, courseId, content, progress, onProgressUpdate, accessExpiredAt = null, onRenew }) => {
     const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
     const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
     const hasPositioned = useRef(false);
@@ -76,6 +76,26 @@ const LessonPlayerPage = ({ navigateTo, course, courseId, content, progress, onP
       setCurrentLessonIndex(lessonIndex);
       recordAccess(courseContent[moduleIndex]?.lessons[lessonIndex]?.id);
     }, [courseContent, progress, unlockedModules, completedLessons, recordAccess]);
+
+    // Prazo de acesso encerrado: a API já não entrega as aulas; a tela explica e
+    // oferece a renovação (o progresso continua salvo).
+    if (accessExpiredAt) {
+      return (
+        <section className="ui-page">
+          <div className="container">
+            <div className="ui-empty pl-expired">
+              <Lock size={32} aria-hidden="true" />
+              <h2>Seu acesso a este curso expirou</h2>
+              <p>O prazo terminou em {formatDate(accessExpiredAt)}. Seu progresso continua salvo: renove o acesso para continuar de onde parou.</p>
+              <div className="pl-expired-actions">
+                <button type="button" className="ui-btn ui-btn-primary" onClick={() => onRenew(course)}>Renovar acesso</button>
+                <button type="button" className="ui-btn ui-btn-secondary" onClick={() => navigateTo('studentDashboard')}>Voltar aos meus cursos</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      );
+    }
 
     if (content === undefined) {
       return (
