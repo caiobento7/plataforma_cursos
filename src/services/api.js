@@ -99,6 +99,10 @@ export const api = {
     body: JSON.stringify({ modules }),
   }),
   getCourseProgress: (courseId) => request(`/api/courses/${courseId}/progress`),
+  setLastLesson: (courseId, lessonId) => request(`/api/courses/${courseId}/last-lesson`, {
+    method: 'PUT',
+    body: JSON.stringify({ lessonId }),
+  }),
   setLessonProgress: (lessonId, completed) => request(`/api/lessons/${lessonId}/progress`, {
     method: 'PUT',
     body: JSON.stringify({ completed }),

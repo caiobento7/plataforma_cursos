@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import QuizComponent from '../components/QuizComponent.jsx';
 import QuestionArea from '../components/QuestionArea.jsx';
+import { api } from '../services/api.js';
 import { calculateProgress, getVideoEmbedUrl } from '../utils/courseUtils.js';
 
 // Um módulo está concluído quando todos os quizzes dele foram aprovados; sem
@@ -16,6 +17,7 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
     const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
     const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
     const hasPositioned = useRef(false);
+    const lastRecordedLessonId = useRef(null);
 
     const courseContent = useMemo(() => content || [], [content]);
     const completedLessons = useMemo(() => progress?.completed || new Set(), [progress]);
@@ -31,23 +33,47 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
       return unlocked;
     }, [courseContent, completedLessons]);
 
-    // Ao abrir o curso, posiciona o aluno na primeira aula pendente dos módulos
-    // liberados, para "Continuar" retomar de onde ele parou. Roda uma única vez,
-    // quando conteúdo e progresso já chegaram da API.
+    // Registra na API a aula aberta, para o "Continue de onde parou". Falhas
+    // são ignoradas: não impedem o aluno de estudar.
+    const recordAccess = useCallback((lessonId) => {
+      if (!lessonId || lastRecordedLessonId.current === lessonId) return;
+      lastRecordedLessonId.current = lessonId;
+      api.setLastLesson(courseId, lessonId).catch(() => {});
+    }, [courseId]);
+
+    const currentLessonId = courseContent[currentModuleIndex]?.lessons[currentLessonIndex]?.id;
+
+    // Declarado antes do posicionamento: assim nunca registra a aula padrão
+    // (a primeira) antes de o player ir para a aula certa.
+    useEffect(() => {
+      if (hasPositioned.current) recordAccess(currentLessonId);
+    }, [currentLessonId, recordAccess]);
+
+    // Ao abrir o curso, vai para a aula indicada pela API (a mesma do "Continue
+    // de onde parou"). Sem indicação válida, usa a primeira pendente dos módulos
+    // liberados. Roda uma única vez, quando conteúdo e progresso já chegaram.
     useEffect(() => {
       if (hasPositioned.current || courseContent.length === 0 || !progress) return;
       hasPositioned.current = true;
 
-      for (let moduleIndex = 0; moduleIndex < courseContent.length; moduleIndex += 1) {
-        if (!unlockedModules.has(moduleIndex)) break;
-        const lessonIndex = courseContent[moduleIndex].lessons.findIndex((lesson) => !completedLessons.has(lesson.id));
-        if (lessonIndex >= 0) {
-          setCurrentModuleIndex(moduleIndex);
-          setCurrentLessonIndex(lessonIndex);
-          return;
+      const findTarget = () => {
+        for (let moduleIndex = 0; moduleIndex < courseContent.length; moduleIndex += 1) {
+          const lessonIndex = courseContent[moduleIndex].lessons.findIndex((lesson) => lesson.id === progress.nextLessonId);
+          if (lessonIndex >= 0 && unlockedModules.has(moduleIndex)) return [moduleIndex, lessonIndex];
         }
-      }
-    }, [courseContent, progress, unlockedModules, completedLessons]);
+        for (let moduleIndex = 0; moduleIndex < courseContent.length; moduleIndex += 1) {
+          if (!unlockedModules.has(moduleIndex)) break;
+          const lessonIndex = courseContent[moduleIndex].lessons.findIndex((lesson) => !completedLessons.has(lesson.id));
+          if (lessonIndex >= 0) return [moduleIndex, lessonIndex];
+        }
+        return [0, 0];
+      };
+
+      const [moduleIndex, lessonIndex] = findTarget();
+      setCurrentModuleIndex(moduleIndex);
+      setCurrentLessonIndex(lessonIndex);
+      recordAccess(courseContent[moduleIndex]?.lessons[lessonIndex]?.id);
+    }, [courseContent, progress, unlockedModules, completedLessons, recordAccess]);
 
     if (content === undefined) {
       return (

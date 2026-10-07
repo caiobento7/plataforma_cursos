@@ -79,15 +79,20 @@ const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onPro
   const fullName = currentUser?.full_name || 'Aluno';
   const firstName = fullName.split(' ')[0];
 
-  // Destaque: o curso em andamento estudado por último; sem nenhum em
-  // andamento, o primeiro ainda não iniciado.
+  // Destaque: o curso não concluído com a atividade mais recente (última aula
+  // aberta ou concluída). Sem atividade, o curso matriculado mais recentemente
+  // que ainda não foi iniciado.
   const { spotlight, inProgressCount } = useMemo(() => {
-    const inProgress = purchasedCourses
-      .filter((course) => getProgress(course).percent > 0 && getProgress(course).percent < 100)
-      .sort((a, b) => String(getProgress(b).lastCompletedAt || '').localeCompare(String(getProgress(a).lastCompletedAt || '')));
+    const lastActivity = (course) => {
+      const { lastAccessedAt, lastCompletedAt } = getProgress(course);
+      return [lastAccessedAt, lastCompletedAt].filter(Boolean).sort().pop() || '';
+    };
+    const active = purchasedCourses
+      .filter((course) => getProgress(course).percent < 100 && lastActivity(course))
+      .sort((a, b) => lastActivity(b).localeCompare(lastActivity(a)));
     return {
-      spotlight: inProgress[0] || purchasedCourses.find((course) => getProgress(course).percent === 0) || null,
-      inProgressCount: inProgress.length,
+      spotlight: active[0] || purchasedCourses.find((course) => getProgress(course).percent === 0) || null,
+      inProgressCount: purchasedCourses.filter((course) => getProgress(course).percent > 0 && getProgress(course).percent < 100).length,
     };
   }, [purchasedCourses]);
   const certificatesAvailable = purchasedCourses.filter((course) => getProgress(course).certificateAvailable).length;
@@ -241,7 +246,7 @@ const StudentDashboardPage = ({ navigateTo, purchasedCourses, currentUser, onPro
   const renderSpotlight = () => {
     if (!spotlight) return null;
     const progress = getProgress(spotlight);
-    const started = progress.percent > 0;
+    const started = progress.percent > 0 || Boolean(progress.lastAccessedAt);
     const next = progress.nextLesson;
 
     return (
