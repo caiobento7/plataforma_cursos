@@ -1,81 +1,48 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 
 const CreateCourseForm = ({ onCourseCreate }) => {
-    const [title, setTitle] = useState('');
-    // Autor fixo: a plataforma ainda não tem autenticação real, então o curso
-    // criado é sempre atribuído ao professor da sessão simulada.
-    const [price, setPrice] = useState(0);
-    const [level, setLevel] = useState('Iniciante');
-    const [description, setDescription] = useState('');
-  
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      const newCourse = {
-        id: Date.now(),
-        title,
-        price: parseFloat(price),
-        level,
-        rating: 0, 
-        imageUrl: `https://placehold.co/600x400/2c3e50/ffffff?text=${encodeURIComponent(title)}`,
-        description 
-      };
-  
-      onCourseCreate(newCourse);
-    };
-  
-    return (
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="course-title">Título do Curso</label>
-          <input 
-            type="text" 
-            id="course-title" 
-            value={title} 
-            onChange={(e) => setTitle(e.target.value)} 
-            required 
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="course-desc">Descrição Curta</label>
-          <textarea 
-            id="course-desc" 
-            rows="4" 
-            value={description} 
-            onChange={(e) => setDescription(e.target.value)}
-          ></textarea>
-        </div>
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <div className="form-group" style={{ flex: 1 }}>
-            <label htmlFor="course-price">Preço (R$)</label>
-            <input 
-              type="number" 
-              id="course-price" 
-              value={price} 
-              onChange={(e) => setPrice(e.target.value)} 
-              min="0" 
-              step="0.01" 
-              required 
-            />
-          </div>
-          <div className="form-group" style={{ flex: 1 }}>
-            <label htmlFor="course-level">Nível</label>
-            <select 
-              id="course-level" 
-              value={level} 
-              onChange={(e) => setLevel(e.target.value)}
-            >
-              <option>Iniciante</option>
-              <option>Intermediário</option>
-              <option>Avançado</option>
-            </select>
-          </div>
-        </div>
-        <button type="submit" className="btn admin-submit-button" style={{ width: '100%' }}>
-          Próximo: Adicionar Conteúdo <ArrowRight size={17} aria-hidden="true" />
-        </button>
-      </form>
-    );
+  const [title, setTitle] = useState('');
+  const [price, setPrice] = useState('0');
+  const [level, setLevel] = useState('Iniciante');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await onCourseCreate({ title: title.trim(), price: Number(price), level });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  export default CreateCourseForm;
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="ui-field">
+        <label htmlFor="course-title">Título do curso</label>
+        <input className="ui-input" id="course-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex.: Excel para iniciantes" required />
+      </div>
+      <div className="bo-form-row">
+        <div className="ui-field">
+          <label htmlFor="course-price">Preço (R$)</label>
+          <input className="ui-input" type="number" id="course-price" value={price} onChange={(event) => setPrice(event.target.value)} min="0" step="0.01" required />
+          <small className="ui-muted">Use 0 para um curso gratuito.</small>
+        </div>
+        <div className="ui-field">
+          <label htmlFor="course-level">Nível</label>
+          <select className="ui-select" id="course-level" value={level} onChange={(event) => setLevel(event.target.value)}>
+            <option>Iniciante</option>
+            <option>Intermediário</option>
+            <option>Avançado</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" className="ui-btn ui-btn-primary ui-btn-lg" disabled={isSubmitting || !title.trim()}>
+        {isSubmitting ? 'Criando...' : 'Criar e adicionar conteúdo'} <ArrowRight size={17} aria-hidden="true" />
+      </button>
+    </form>
+  );
+};
+
+export default CreateCourseForm;

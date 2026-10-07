@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Header from './components/Header.jsx';
 import CartPage from './pages/CartPage.jsx';
+import CheckoutPage from './pages/CheckoutPage.jsx';
 import CourseDetailsPage from './pages/CourseDetailsPage.jsx';
 import CourseEditorPage from './pages/CourseEditorPage.jsx';
 import EditCourseMetadataPage from './pages/EditCourseMetadataPage.jsx';
@@ -44,10 +45,10 @@ const App = () => {
   const [allCourses, setAllCourses] = useState([]);
   const [cart, setCart] = useState([]);
   const [recentlyPurchasedCourses, setRecentlyPurchasedCourses] = useState([]);
+  const [lastOrder, setLastOrder] = useState(null);
   const [purchasedCourses, setPurchasedCourses] = useState([]);
   const [coursesContentDB, setCoursesContentDB] = useState({});
   const [courseProgress, setCourseProgress] = useState({});
-  const [questionsDB] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   // Com uma sessão salva, espera o perfil chegar antes de decidir a tela, para
   // quem já está logado não ver a landing piscar.
@@ -221,19 +222,19 @@ const App = () => {
     return true;
   };
 
-  const handlePurchase = async () => {
-    if (!currentUser) {
-      alert('Entre na sua conta para se matricular.');
-      navigateTo('login');
-      return;
-    }
+  // Confirma o pedido do checkout: matricula o aluno em cada curso do carrinho.
+  // Um curso já matriculado (409) não interrompe os demais. Outros erros sobem
+  // para o checkout, que os exibe sem sair da tela.
+  const handlePurchase = async (order) => {
+    const purchasedNow = [...cart];
     try {
-      const purchasedNow = [...cart];
-      await Promise.all(purchasedNow.map((course) => api.enroll(course.id)));
-      setCart([]);
-      setRecentlyPurchasedCourses(purchasedNow);
-      await loadEnrollments();
-      navigateTo('enrollmentSuccess');
+      for (const course of purchasedNow) {
+        try {
+          await api.enroll(course.id);
+        } catch (error) {
+          if (error.status !== 409) throw error;
+        }
+      }
     } catch (error) {
       if (error.status === 401) {
         setAccessToken(null);
@@ -241,8 +242,13 @@ const App = () => {
         navigateTo('login');
         return;
       }
-      alert(error.message);
+      throw error;
     }
+    setCart([]);
+    setRecentlyPurchasedCourses(purchasedNow);
+    setLastOrder(order);
+    await loadEnrollments();
+    navigateTo('enrollmentSuccess');
   };
 
   const handleDeleteCourse = async (courseId) => {
@@ -333,16 +339,17 @@ const App = () => {
         ? renderAdminDashboard()
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
       case 'details': return <CourseDetailsPage navigateTo={navigateTo} course={selectedCourse} content={selectedContent} addToCart={addToCart} isEnrolled={enrolledCourseIds.includes(selectedCourseId)} isInCart={cart.some((course) => course.id === selectedCourseId)} />;
-      case 'player': return <LessonPlayerPage navigateTo={navigateTo} courseId={selectedCourseId} content={selectedContent} progress={courseProgress[selectedCourseId]} onProgressUpdate={handleProgressUpdate} questions={questionsDB} onAskQuestion={() => {}} />;
+      case 'player': return <LessonPlayerPage navigateTo={navigateTo} course={selectedCourse} courseId={selectedCourseId} content={selectedContent} progress={courseProgress[selectedCourseId]} onProgressUpdate={handleProgressUpdate} />;
       case 'dashboard': return currentUser?.role === 'admin'
         ? renderAdminDashboard()
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
       case 'courseEditor': return <CourseEditorPage navigateTo={navigateTo} course={selectedCourse} content={selectedContent} onSaveContent={handleSaveCourseContent} />;
       case 'editCourseMetadata': return <EditCourseMetadataPage navigateTo={navigateTo} course={selectedCourse} onUpdateCourse={handleUpdateCourseMetadata} />;
       case 'login': return <LoginPage key={currentPageData || 'login'} navigateTo={navigateTo} initialTab={currentPageData || 'login'} onAuthenticated={handleAuthenticated} onLoginComplete={handleLoginComplete} />;
-      case 'cart': return <CartPage cart={cart} navigateTo={navigateTo} removeFromCart={(id) => setCart((previous) => previous.filter((course) => course.id !== id))} handlePurchase={handlePurchase} />;
+      case 'cart': return <CartPage cart={cart} navigateTo={navigateTo} removeFromCart={(id) => setCart((previous) => previous.filter((course) => course.id !== id))} onCheckout={() => navigateTo('checkout')} />;
+      case 'checkout': return <CheckoutPage cart={cart} navigateTo={navigateTo} onConfirm={handlePurchase} />;
       case 'enrollmentSuccess': return currentUser?.role === 'student'
-        ? <EnrollmentSuccessPage courses={recentlyPurchasedCourses} navigateTo={navigateTo} />
+        ? <EnrollmentSuccessPage courses={recentlyPurchasedCourses} order={lastOrder} navigateTo={navigateTo} />
         : <HomePage navigateTo={navigateTo} courses={filteredCourses} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} enrolledCourseIds={enrolledCourseIds} />;
       case 'studentDashboard': return currentUser?.role === 'student'
         ? <StudentDashboardPage navigateTo={navigateTo} purchasedCourses={purchasedCourses} currentUser={currentUser} onProfileUpdated={setCurrentUser} />

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Award, CheckCircle2, Download, FileText, ListChecks, Lock, PlayCircle } from 'lucide-react';
 import QuizComponent from '../components/QuizComponent.jsx';
 import QuestionArea from '../components/QuestionArea.jsx';
 import { api } from '../services/api.js';
@@ -13,11 +13,13 @@ const isModuleComplete = (module, completedLessons) => {
   return required.every((lesson) => completedLessons.has(lesson.id));
 };
 
-const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressUpdate, questions, onAskQuestion }) => {
+const LessonPlayerPage = ({ navigateTo, course, courseId, content, progress, onProgressUpdate }) => {
     const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
     const [currentLessonIndex, setCurrentLessonIndex] = useState(0);
     const hasPositioned = useRef(false);
     const lastRecordedLessonId = useRef(null);
+    // Aviso exibido no player (módulo bloqueado, fim do curso), no lugar de alert().
+    const [notice, setNotice] = useState('');
 
     const courseContent = useMemo(() => content || [], [content]);
     const completedLessons = useMemo(() => progress?.completed || new Set(), [progress]);
@@ -77,220 +79,194 @@ const LessonPlayerPage = ({ navigateTo, courseId, content, progress, onProgressU
 
     if (content === undefined) {
       return (
-        <div className="container" style={{ marginTop: '30px' }}>
-          <div className="card"><p>Carregando aulas do curso...</p></div>
-        </div>
+        <section className="ui-page">
+          <div className="container"><p className="ui-muted">Carregando aulas do curso...</p></div>
+        </section>
       );
     }
 
     if (courseContent.length === 0 || !courseContent[currentModuleIndex] || !courseContent[currentModuleIndex].lessons[currentLessonIndex]) {
       return (
-        <div className="container" style={{marginTop: '30px'}}>
-          <div className="card">
-            <h2>Conteúdo Indisponível</h2>
-            <p>O instrutor ainda não adicionou aulas a este curso.</p>
-            <button className="btn" onClick={() => navigateTo('studentDashboard')}>Voltar aos Meus Cursos</button>
+        <section className="ui-page">
+          <div className="container">
+            <div className="ui-empty">
+              <h2>Conteúdo em preparação</h2>
+              <p>O instrutor ainda não publicou aulas neste curso. Volte em breve.</p>
+              <button type="button" className="ui-btn ui-btn-secondary" onClick={() => navigateTo('studentDashboard')}>Voltar aos meus cursos</button>
+            </div>
           </div>
-        </div>
+        </section>
       );
     }
-  
+
     const currentLesson = courseContent[currentModuleIndex].lessons[currentLessonIndex];
-    
+    const isCurrentCompleted = completedLessons.has(currentLesson.id);
+    const totalLessons = courseContent.reduce((total, module) => total + module.lessons.length, 0);
+    const completedCount = courseContent.reduce((total, module) => total + module.lessons.filter((lesson) => completedLessons.has(lesson.id)).length, 0);
+    const localProgress = calculateProgress(courseId, { [courseId]: { completed: completedLessons } }, courseContent);
+    const isFirstLesson = currentModuleIndex === 0 && currentLessonIndex === 0;
+    const isLastLesson = currentModuleIndex === courseContent.length - 1 && currentLessonIndex === courseContent[currentModuleIndex].lessons.length - 1;
+
+    const showNotice = (text) => setNotice(text);
+
+    const goTo = (moduleIndex, lessonIndex) => {
+      setNotice('');
+      setCurrentModuleIndex(moduleIndex);
+      setCurrentLessonIndex(lessonIndex);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     const handleToggleCompletion = () => {
       if (currentLesson.type !== 'video') return;
-      
       const newCompleted = new Set(completedLessons);
-      const passaAConcluir = !newCompleted.has(currentLesson.id);
+      const willComplete = !newCompleted.has(currentLesson.id);
+      if (willComplete) newCompleted.add(currentLesson.id);
+      else newCompleted.delete(currentLesson.id);
 
-      if (passaAConcluir) {
-        newCompleted.add(currentLesson.id);
-      } else {
-        newCompleted.delete(currentLesson.id);
-      }
-
-      // changedLesson informa ao App qual aula gravar na API. Sem esse campo, a
-      // atualização é tratada como local (é o caso do desbloqueio de módulos).
-      onProgressUpdate(courseId, {
-        completed: newCompleted,
-        changedLesson: { id: currentLesson.id, completed: passaAConcluir }
-      });
+      // changedLesson informa ao App qual aula gravar na API.
+      onProgressUpdate(courseId, { completed: newCompleted, changedLesson: { id: currentLesson.id, completed: willComplete } });
     };
 
     const handleQuizPass = () => {
-      const newCompleted = new Set(completedLessons).add(currentLesson.id);
       onProgressUpdate(courseId, {
-        completed: newCompleted,
-        changedLesson: { id: currentLesson.id, completed: true }
+        completed: new Set(completedLessons).add(currentLesson.id),
+        changedLesson: { id: currentLesson.id, completed: true },
       });
     };
-    
-    const goToLesson = (moduleIndex, lessonIndex) => {
+
+    const handleSelectLesson = (moduleIndex, lessonIndex) => {
       if (!unlockedModules.has(moduleIndex)) {
-        alert('Você precisa concluir o quiz ou todas as aulas do módulo anterior para desbloquear este.');
+        showNotice('Este módulo ainda está bloqueado. Conclua o quiz ou as aulas do módulo anterior para liberá-lo.');
         return;
       }
-      setCurrentModuleIndex(moduleIndex);
-      setCurrentLessonIndex(lessonIndex);
+      goTo(moduleIndex, lessonIndex);
     };
-  
+
     const handlePrev = () => {
-      if (currentLessonIndex > 0) {
-        setCurrentLessonIndex(prev => prev - 1);
-      } else if (currentModuleIndex > 0) {
-        const prevModuleIndex = currentModuleIndex - 1;
-        const prevModuleLessonCount = courseContent[prevModuleIndex].lessons.length;
-        setCurrentModuleIndex(prevModuleIndex);
-        setCurrentLessonIndex(prevModuleLessonCount - 1);
-      }
+      if (currentLessonIndex > 0) goTo(currentModuleIndex, currentLessonIndex - 1);
+      else if (currentModuleIndex > 0) goTo(currentModuleIndex - 1, courseContent[currentModuleIndex - 1].lessons.length - 1);
     };
-    
+
     const handleNext = () => {
-      const currentModuleLessonCount = courseContent[currentModuleIndex].lessons.length;
-      
-      if (currentLessonIndex < currentModuleLessonCount - 1) {
-        setCurrentLessonIndex(prev => prev + 1);
+      if (currentLessonIndex < courseContent[currentModuleIndex].lessons.length - 1) {
+        goTo(currentModuleIndex, currentLessonIndex + 1);
       } else if (currentModuleIndex < courseContent.length - 1) {
-        if (unlockedModules.has(currentModuleIndex + 1)) {
-          setCurrentModuleIndex(prev => prev + 1);
-          setCurrentLessonIndex(0);
-        } else {
-          alert("Complete todas as aulas ou quizzes deste módulo para avançar.");
-        }
+        if (unlockedModules.has(currentModuleIndex + 1)) goTo(currentModuleIndex + 1, 0);
+        else showNotice('Para avançar, conclua o quiz ou todas as aulas deste módulo.');
       } else {
-        alert("Parabéns, você concluiu o curso! (simulado)");
+        setNotice('finished');
       }
     };
-    
-    const localProgress = calculateProgress(courseId, { [courseId]: { completed: completedLessons } }, courseContent);
-  
-    const renderPlayerContent = () => {
-      switch(currentLesson.type) {
-        case 'video': {
-          const embedUrl = getVideoEmbedUrl(currentLesson.videoUrl);
-          return (
-            <>
-              {embedUrl ? (
-                <iframe
-                  key={currentLesson.id}
-                  className="video-player video-embed"
-                  src={embedUrl}
-                  title={currentLesson.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : currentLesson.videoUrl ? (
-                <video key={currentLesson.id} className="video-player" controls src={currentLesson.videoUrl}>
-                  Seu navegador não suporta a tag de vídeo.
-                </video>
-              ) : (
-                <div className="video-player video-unavailable">O vídeo desta aula ainda não foi publicado.</div>
-              )}
-              <h2>{currentLesson.title}</h2>
-              <p>Nesta aula, vamos explorar o tópico: {currentLesson.title}.</p>
-              {currentLesson.documentUrl && (
-                <a 
-                  href={currentLesson.documentUrl} 
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-accent" 
-                  style={{marginTop: '20px', display: 'inline-block'}}
-                >
-                  Baixar Material de Apoio
-                </a>
-              )}
-            </>
-          );
-        }
-        case 'quiz':
-          return (
-            <QuizComponent 
-              quizData={currentLesson.quizData} 
-              onQuizPass={handleQuizPass}
-              onProceed={handleNext} 
-            />
-          );
-        default:
-          return <h2>Tipo de aula desconhecido.</h2>
-      }
-    };
-  
-    return (
-      <div className="container" style={{ marginTop: '30px' }}>
-        <div className="course-content">
-          <div className="course-main">
-            <div className="card">
-              {renderPlayerContent()}
-              
-              {currentLesson.type === 'video' && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-                  <button className="btn" onClick={handlePrev}>Aula Anterior</button>
-                  <button 
-                    className={`btn ${completedLessons.has(currentLesson.id) ? 'btn' : 'btn-success'}`} 
-                    onClick={handleToggleCompletion}
-                  >
-                    {completedLessons.has(currentLesson.id) ? 'Desmarcar Conclusão' : 'Marcar como Concluída'}
-                  </button>
-                  <button className="btn btn-accent" onClick={handleNext}>Próxima Aula</button>
-                </div>
-              )}
-  
-              {currentLesson.type === 'quiz' && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-                  <button className="btn" onClick={handlePrev}>Aula Anterior</button>
-                  <button className="btn btn-accent" onClick={handleNext}>Próxima Aula</button>
-                </div>
-              )}
-            </div>
-            
-            <QuestionArea
-              courseId={courseId}
-              lessonId={currentLesson.id}
-              questions={questions}
-              onAskQuestion={onAskQuestion}
-            />
+
+    const renderStage = () => {
+      if (currentLesson.type === 'quiz') {
+        return (
+          <div className="pl-stage quiz">
+            <QuizComponent key={currentLesson.id} quizData={currentLesson.quizData} alreadyPassed={isCurrentCompleted} onQuizPass={handleQuizPass} onProceed={handleNext} />
           </div>
-          
-          <div className="course-sidebar">
-            <div className="card">
-              <h4>Progresso do Curso</h4>
-              <div className="progress-bar-container">
-                <div className="progress-bar" style={{ width: `${localProgress}%` }}></div>
-              </div>
-              <p>{localProgress}% concluído</p>
-            </div>
-  
-            <div className="card">
-              <h3>Conteúdo do Curso</h3>
-              {courseContent.map((module, moduleIndex) => {
-                const isModuleLocked = !unlockedModules.has(moduleIndex);
-                return (
-                  <div className="module" key={module.id}>
-                    <div className={`module-header ${isModuleLocked ? 'locked' : ''}`}>
-                      {module.title} {isModuleLocked ? '(Bloqueado)' : ''}
-                    </div>
-                    {module.lessons.map((lesson, lessonIndex) => {
-                      const isActive = moduleIndex === currentModuleIndex && lessonIndex === currentLessonIndex;
-                      const isCompleted = completedLessons.has(lesson.id);
-                      
-                      return (
-                        <div 
-                          className={`lesson ${isActive ? 'active' : ''} ${isModuleLocked ? 'locked' : ''} ${isCompleted ? 'completed' : ''}`} 
-                          key={lesson.id}
-                          onClick={() => goToLesson(moduleIndex, lessonIndex)}
-                        >
-                          <span>{lesson.title}</span>
-                          <span>{isCompleted ? <Check size={16} strokeWidth={2.5} aria-label="Concluída" /> : lesson.duration}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+        );
+      }
+
+      const embedUrl = getVideoEmbedUrl(currentLesson.videoUrl);
+      return (
+        <div className="pl-stage">
+          {embedUrl ? (
+            <iframe key={currentLesson.id} src={embedUrl} title={currentLesson.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+          ) : currentLesson.videoUrl ? (
+            <video key={currentLesson.id} controls src={currentLesson.videoUrl}>Seu navegador não suporta vídeos.</video>
+          ) : (
+            <div className="pl-stage-empty"><PlayCircle size={40} aria-hidden="true" /><span>O vídeo desta aula ainda não foi publicado.</span></div>
+          )}
+        </div>
+      );
+    };
+
+    return (
+      <section className="pl-page">
+        <div className="pl-top">
+          <div className="container pl-top-inner">
+            <button type="button" className="ui-back" onClick={() => navigateTo('studentDashboard')}><ArrowLeft size={16} aria-hidden="true" /> Meus cursos</button>
+            <strong className="pl-top-title">{course?.title}</strong>
+            <div className="pl-top-progress">
+              <div className={`st-bar ${localProgress >= 100 ? 'done' : ''}`} aria-hidden="true"><i style={{ width: `${localProgress}%` }} /></div>
+              <span>{localProgress}% · {completedCount}/{totalLessons} aulas</span>
             </div>
           </div>
         </div>
-      </div>
+
+        <div className="container pl-layout">
+          <div className="pl-main">
+            {renderStage()}
+
+            <div className="pl-lesson-head">
+              <div>
+                <span className="st-eyebrow">Módulo {currentModuleIndex + 1} · Aula {currentLessonIndex + 1}</span>
+                <h1>{currentLesson.title}</h1>
+                <p className="ui-muted">{currentLesson.type === 'quiz' ? 'Quiz' : 'Vídeo-aula'} · {currentLesson.duration}</p>
+              </div>
+              {currentLesson.type === 'video' && (
+                <button type="button" className={`ui-btn ${isCurrentCompleted ? 'ui-btn-secondary pl-done' : 'ui-btn-primary'}`} onClick={handleToggleCompletion}>
+                  <CheckCircle2 size={18} aria-hidden="true" /> {isCurrentCompleted ? 'Aula concluída' : 'Marcar como concluída'}
+                </button>
+              )}
+            </div>
+
+            {currentLesson.documentUrl && (
+              <a className="pl-material" href={currentLesson.documentUrl} target="_blank" rel="noopener noreferrer">
+                <FileText size={22} aria-hidden="true" />
+                <span><strong>Material de apoio</strong><small>Abre em uma nova aba</small></span>
+                <Download size={18} aria-hidden="true" />
+              </a>
+            )}
+
+            {notice === 'finished' ? (
+              <div className="pl-finish">
+                <Award size={28} aria-hidden="true" />
+                <div>
+                  <strong>Você chegou ao fim do curso!</strong>
+                  <span>{localProgress >= 60 ? 'Seu certificado já pode ser emitido no painel.' : 'Conclua as aulas pendentes para liberar o certificado.'}</span>
+                </div>
+                <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => navigateTo('studentDashboard')}>Ir para o painel</button>
+              </div>
+            ) : notice && <p className="ui-alert" role="status">{notice}</p>}
+
+            <div className="pl-nav">
+              <button type="button" className="ui-btn ui-btn-secondary" onClick={handlePrev} disabled={isFirstLesson}><ArrowLeft size={16} aria-hidden="true" /> Aula anterior</button>
+              <button type="button" className="ui-btn ui-btn-secondary" onClick={handleNext}>{isLastLesson ? 'Finalizar curso' : 'Próxima aula'} <ArrowRight size={16} aria-hidden="true" /></button>
+            </div>
+
+            <QuestionArea key={currentLesson.id} lessonId={currentLesson.id} />
+          </div>
+
+          <aside className="pl-sidebar" aria-label="Conteúdo do curso">
+            <h2>Conteúdo do curso</h2>
+            {courseContent.map((module, moduleIndex) => {
+              const isLocked = !unlockedModules.has(moduleIndex);
+              const doneInModule = module.lessons.filter((lesson) => completedLessons.has(lesson.id)).length;
+              return (
+                <div key={module.id} className={`pl-module ${isLocked ? 'locked' : ''}`}>
+                  <div className="pl-module-head">
+                    <strong>{module.title}</strong>
+                    <small>{isLocked ? <Lock size={13} aria-label="Bloqueado" /> : `${doneInModule}/${module.lessons.length}`}</small>
+                  </div>
+                  {module.lessons.map((lesson, lessonIndex) => {
+                    const isActive = moduleIndex === currentModuleIndex && lessonIndex === currentLessonIndex;
+                    const isDone = completedLessons.has(lesson.id);
+                    const Icon = isDone ? CheckCircle2 : isLocked ? Lock : lesson.type === 'quiz' ? ListChecks : PlayCircle;
+                    return (
+                      <button key={lesson.id} type="button" className={`pl-lesson ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`} onClick={() => handleSelectLesson(moduleIndex, lessonIndex)} aria-current={isActive ? 'true' : undefined}>
+                        <Icon size={17} aria-hidden="true" />
+                        <span>{lesson.title}</span>
+                        <small>{lesson.duration}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </aside>
+        </div>
+      </section>
     );
   };
 

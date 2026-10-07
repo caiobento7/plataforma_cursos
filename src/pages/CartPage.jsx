@@ -1,19 +1,8 @@
-import { ArrowLeft, Lock, ShoppingBag, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, ArrowRight, Lock, ShoppingBag, Trash2 } from 'lucide-react';
 import { formatPrice } from '../utils/courseUtils.js';
 
-const CartPage = ({ cart, navigateTo, removeFromCart, handlePurchase }) => {
-  const [isPurchasing, setIsPurchasing] = useState(false);
+const CartPage = ({ cart, navigateTo, removeFromCart, onCheckout }) => {
   const total = cart.reduce((sum, course) => sum + course.price, 0);
-
-  const handleCheckout = async () => {
-    setIsPurchasing(true);
-    try {
-      await handlePurchase();
-    } finally {
-      setIsPurchasing(false);
-    }
-  };
 
   return (
     <section className="ui-page">
@@ -54,8 +43,8 @@ const CartPage = ({ cart, navigateTo, removeFromCart, handlePurchase }) => {
               <h2>Resumo</h2>
               <div className="ui-summary-row"><span>Cursos</span><span>{cart.length}</span></div>
               <div className="ui-summary-total"><span>Total</span><span>{formatPrice(total)}</span></div>
-              <button type="button" className="ui-btn ui-btn-primary ui-btn-lg ui-btn-block" onClick={handleCheckout} disabled={isPurchasing}>
-                {isPurchasing ? 'Confirmando...' : total === 0 ? 'Confirmar matrícula' : 'Finalizar compra'}
+              <button type="button" className="ui-btn ui-btn-primary ui-btn-lg ui-btn-block" onClick={onCheckout}>
+                {total === 0 ? 'Continuar' : 'Ir para o pagamento'} <ArrowRight size={18} aria-hidden="true" />
               </button>
               <span className="ui-summary-note"><Lock size={13} aria-hidden="true" /> Acesso liberado logo após a confirmação.</span>
             </aside>

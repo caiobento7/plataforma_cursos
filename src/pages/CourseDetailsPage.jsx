@@ -1,5 +1,5 @@
 import { ArrowLeft, Award, CheckCircle2, ChevronDown, Clock, ListChecks, MonitorSmartphone, PlayCircle, Star } from 'lucide-react';
-import { formatPrice } from '../utils/courseUtils.js';
+import { formatPrice, formatRating } from '../utils/courseUtils.js';
 
 // Converte as durações livres das aulas ("15 min", "1h 30min") em minutos.
 const durationMinutes = (duration) => {
@@ -42,7 +42,7 @@ const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isEnrolled 
 
   const handleBuyNow = () => {
     addToCart(course);
-    navigateTo('cart');
+    navigateTo('checkout');
   };
 
   return (
@@ -61,7 +61,7 @@ const CourseDetailsPage = ({ navigateTo, course, content, addToCart, isEnrolled 
             </p>
 
             <dl className="ui-detail-facts">
-              <div><dt>Avaliação</dt><dd><Star size={15} fill="currentColor" aria-hidden="true" /> {course.rating.toFixed(1)}{course.reviewCount > 0 && <small style={{ color: 'var(--ui-muted)', fontWeight: 500 }}>&nbsp;({course.reviewCount})</small>}</dd></div>
+              <div><dt>Avaliação</dt><dd><Star size={15} fill="currentColor" aria-hidden="true" /> {formatRating(course.rating)}{course.reviewCount > 0 && <small style={{ color: 'var(--ui-muted)', fontWeight: 500 }}>&nbsp;({course.reviewCount})</small>}</dd></div>
               {course.enrollmentCount > 0 && <div><dt>Alunos</dt><dd>{course.enrollmentCount.toLocaleString('pt-BR')}</dd></div>}
               {lessons.length > 0 && <div><dt>Aulas</dt><dd>{lessons.length}</dd></div>}
               {totalMinutes > 0 && <div><dt>Duração</dt><dd>{formatTotalDuration(totalMinutes)}</dd></div>}

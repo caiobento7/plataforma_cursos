@@ -1,130 +1,97 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { ArrowLeft, ArrowRight, CheckCircle2, RotateCcw, XCircle } from 'lucide-react';
 
-const QuizComponent = ({ quizData, onQuizPass, onProceed }) => {
-    const quiz = quizData; // Recebe o objeto quizData diretamente
-    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [selectedAnswers, setSelectedAnswers] = useState({});
-    const [showResults, setShowResults] = useState(false);
-  
-    useEffect(() => {
-      setCurrentQuestionIndex(0);
-      setSelectedAnswers({});
-      setShowResults(false);
-    }, [quizData]);
-  
-    const handleOptionSelect = (questionId, option) => {
-      setSelectedAnswers(prev => ({
-        ...prev,
-        [questionId]: option
-      }));
-    };
-  
-    const handleSubmit = () => {
-      setShowResults(true);
-      
-      let correctAnswers = 0;
-      quiz.questions.forEach(q => {
-        if (selectedAnswers[q.id] === q.correct) {
-          correctAnswers++;
-        }
-      });
-      
-      const score = (correctAnswers / quiz.questions.length) * 100;
-      
-      if (score >= quiz.passMark) {
-        onQuizPass();
-      }
-    };
-  
-    if (!quiz || !quiz.questions || quiz.questions.length === 0) {
-      return <div className="quiz-container"><h2>Professor ainda não adicionou perguntas a este quiz.</h2></div>;
-    }
-  
-    if (showResults) {
-      const correctAnswers = quiz.questions.reduce((count, q) => {
-        return selectedAnswers[q.id] === q.correct ? count + 1 : count;
-      }, 0);
-      const score = (correctAnswers / quiz.questions.length) * 100;
-      const passed = score >= quiz.passMark;
-  
-      return (
-        <div className="quiz-results">
-          <h2>Quiz Finalizado!</h2>
-          <p>Você acertou {correctAnswers} de {quiz.questions.length} questões.</p>
-          <p style={{ fontWeight: 700, color: passed ? 'var(--success)' : 'var(--danger)' }}>
-            Sua pontuação: {score.toFixed(0)}%
-          </p>
-          {passed ? (
-            <>
-              <p>Parabéns, você foi aprovado e desbloqueou o próximo módulo!</p>
-              <button className="btn btn-success" onClick={onProceed} style={{marginRight: '10px'}}>
-                Prosseguir para Próximo Módulo
-              </button>
-            </>
-          ) : (
-            <p>Você não atingiu a nota mínima (70%). Por favor, revise o conteúdo e tente novamente.</p>
-          )}
-          <button className="btn" onClick={() => {
-            setShowResults(false);
-            setCurrentQuestionIndex(0);
-            setSelectedAnswers({});
-          }}>
-            Tentar Novamente
-          </button>
-        </div>
-      );
-    }
-  
-    const currentQuestion = quiz.questions[currentQuestionIndex];
-  
+const QuizComponent = ({ quizData, alreadyPassed = false, onQuizPass, onProceed }) => {
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswers, setSelectedAnswers] = useState({});
+  const [showResults, setShowResults] = useState(false);
+
+  const questions = quizData?.questions || [];
+  const passMark = quizData?.passMark ?? 70;
+
+  if (questions.length === 0) {
+    return <div className="qz-empty">As perguntas deste quiz ainda não foram publicadas.</div>;
+  }
+
+  const correctAnswers = questions.filter((question) => selectedAnswers[question.id] === question.correct).length;
+  const score = Math.round((correctAnswers / questions.length) * 100);
+  const passed = score >= passMark;
+  const currentQuestion = questions[currentQuestionIndex];
+  const isLastQuestion = currentQuestionIndex === questions.length - 1;
+  const hasAnswer = Boolean(selectedAnswers[currentQuestion.id]);
+
+  const handleSubmit = () => {
+    setShowResults(true);
+    if (score >= passMark) onQuizPass();
+  };
+
+  const restart = () => {
+    setShowResults(false);
+    setCurrentQuestionIndex(0);
+    setSelectedAnswers({});
+  };
+
+  if (showResults) {
     return (
-      <div className="quiz-container">
-        <p>Pergunta {currentQuestionIndex + 1} de {quiz.questions.length}</p>
-        <div className="quiz-question">{currentQuestion.text}</div>
-        <div className="quiz-options">
-          {currentQuestion.options.map(option => (
-            <label 
-              key={option} 
-              className={`quiz-option ${selectedAnswers[currentQuestion.id] === option ? 'selected' : ''}`}
-            >
-              <input 
-                type="radio" 
-                name={currentQuestion.id} 
-                value={option}
-                checked={selectedAnswers[currentQuestion.id] === option}
-                onChange={() => handleOptionSelect(currentQuestion.id, option)}
-                style={{ display: 'none' }} 
-              />
-              {option}
-            </label>
-          ))}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-          <button 
-            className="btn" 
-            onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
-            disabled={currentQuestionIndex === 0}
-          >
-            Anterior
-          </button>
-          {currentQuestionIndex < quiz.questions.length - 1 ? (
-            <button 
-              className="btn btn-accent" 
-              onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
-            >
-              Próxima
-            </button>
-          ) : (
-            <button 
-              className="btn btn-success" 
-              onClick={handleSubmit}
-            >
-              Finalizar Quiz
-            </button>
-          )}
+      <div className={`qz-result ${passed ? 'passed' : 'failed'}`}>
+        {passed ? <CheckCircle2 size={44} aria-hidden="true" /> : <XCircle size={44} aria-hidden="true" />}
+        <span className="qz-score">{score}%</span>
+        <h2>{passed ? 'Aprovado! Próximo módulo liberado.' : 'Ainda não foi desta vez'}</h2>
+        <p>Você acertou {correctAnswers} de {questions.length} perguntas. A nota mínima é {passMark}%.</p>
+        <div className="qz-actions">
+          {passed
+            ? <button type="button" className="ui-btn ui-btn-primary" onClick={onProceed}>Continuar <ArrowRight size={16} aria-hidden="true" /></button>
+            : <button type="button" className="ui-btn ui-btn-primary" onClick={restart}><RotateCcw size={16} aria-hidden="true" /> Tentar novamente</button>}
+          {passed && <button type="button" className="ui-btn ui-btn-secondary" onClick={restart}>Refazer quiz</button>}
         </div>
       </div>
     );
-  };
+  }
 
-  export default QuizComponent;
+  return (
+    <div className="qz">
+      <div className="qz-head">
+        <span>Pergunta {currentQuestionIndex + 1} de {questions.length}</span>
+        <span>{alreadyPassed ? 'Você já foi aprovado neste quiz' : `Nota mínima: ${passMark}%`}</span>
+      </div>
+      <div className="qz-steps" aria-hidden="true">
+        {questions.map((question, index) => (
+          <i key={question.id} className={index === currentQuestionIndex ? 'current' : selectedAnswers[question.id] ? 'answered' : ''} />
+        ))}
+      </div>
+      <h2 className="qz-question">{currentQuestion.text}</h2>
+      <div className="qz-options" role="radiogroup" aria-label={currentQuestion.text}>
+        {currentQuestion.options.map((option, index) => {
+          const isSelected = selectedAnswers[currentQuestion.id] === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              className={`qz-option ${isSelected ? 'selected' : ''}`}
+              onClick={() => setSelectedAnswers((previous) => ({ ...previous, [currentQuestion.id]: option }))}
+            >
+              <b>{String.fromCharCode(65 + index)}</b>
+              <span>{option}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="qz-actions">
+        <button type="button" className="ui-btn ui-btn-secondary" onClick={() => setCurrentQuestionIndex((index) => index - 1)} disabled={currentQuestionIndex === 0}>
+          <ArrowLeft size={16} aria-hidden="true" /> Anterior
+        </button>
+        {isLastQuestion ? (
+          <button type="button" className="ui-btn ui-btn-primary" onClick={handleSubmit} disabled={Object.keys(selectedAnswers).length < questions.length}>Finalizar quiz</button>
+        ) : (
+          <button type="button" className="ui-btn ui-btn-primary" onClick={() => setCurrentQuestionIndex((index) => index + 1)} disabled={!hasAnswer}>
+            Próxima <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default QuizComponent;
