@@ -3,7 +3,7 @@ import { ArrowDown, ArrowLeft, ArrowUp, Check, Pencil, Plus, X } from 'lucide-re
 import FileUrlField from '../components/FileUrlField.jsx';
 import MiniQuizEditor from '../components/MiniQuizEditor.jsx';
 
-const emptyLessonForm = { title: '', duration: '10 min', type: 'video', videoUrl: '', documentUrl: '' };
+const emptyLessonForm = { title: '', duration: '10 min', type: 'video', videoUrl: '', documentUrl: '', description: '', videoCredit: '' };
 
 // Itens criados no editor recebem ids temporários (texto). A API reconhece
 // que não são numéricos e os insere como novos ao salvar.
@@ -113,6 +113,8 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
       type: 'video',
       videoUrl: lessonForm.videoUrl.trim() || null,
       documentUrl: lessonForm.documentUrl.trim() || null,
+      description: lessonForm.description.trim() || null,
+      videoCredit: lessonForm.videoCredit.trim() || null,
     });
   };
 
@@ -122,6 +124,7 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
       title: lessonForm.title.trim(),
       duration: lessonForm.duration.trim(),
       type: 'quiz',
+      description: lessonForm.description.trim() || null,
       quizData,
     });
   };
@@ -141,6 +144,8 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
       type: lesson.type,
       videoUrl: lesson.videoUrl || '',
       documentUrl: lesson.documentUrl || '',
+      description: lesson.description || '',
+      videoCredit: lesson.videoCredit || '',
     });
   };
 
@@ -234,6 +239,10 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
           </select>
         </div>
       </div>
+      <div className="form-group">
+        <label>Descrição - Opcional</label>
+        <textarea rows="3" maxLength={1000} placeholder="O que o aluno vai aprender nesta aula" value={lessonForm.description} onChange={(event) => handleLessonFormChange('description', event.target.value)} />
+      </div>
 
       {lessonForm.type === 'video' ? (
         <>
@@ -249,6 +258,10 @@ const CourseEditorPage = ({ navigateTo, course, content, onSaveContent }) => {
             hint="Envie um MP4 ou WebM de até 50 MB, ou cole um link do YouTube ou Vimeo."
             onUploadingChange={handleUploadingChange}
           />
+          <div className="form-group">
+            <label>Crédito do vídeo - Opcional</label>
+            <input type="text" maxLength={120} placeholder="Ex.: Curso em Vídeo (YouTube)" value={lessonForm.videoCredit} onChange={(event) => handleLessonFormChange('videoCredit', event.target.value)} />
+          </div>
           <FileUrlField
             label="Material de Apoio - Opcional"
             kind="material"

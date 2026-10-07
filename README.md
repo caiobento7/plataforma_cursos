@@ -28,6 +28,8 @@ React + Vite   ->   API REST (Express)   ->   Supabase (PostgreSQL + Auth + Stor
 - Cadastro, login, sessão renovada automaticamente e recuperação de senha por e-mail.
 - Catálogo com busca e filtros, página de detalhes com a grade do curso.
 - Carrinho e checkout demonstrativo (cartão ou Pix; nenhum valor é cobrado).
+- 6 cursos com conteúdo real: 3 módulos cada, vídeos do YouTube com crédito ao canal,
+  quiz de 5 perguntas e apostila em PDF por módulo.
 - Player com vídeo (arquivo enviado, YouTube ou Vimeo), material de apoio, quizzes
   corrigidos no servidor e módulos liberados conforme a progressão.
 - "Continue de onde parou": retoma o curso na última aula acessada.
@@ -70,9 +72,23 @@ No SQL Editor do Supabase, execute nesta ordem:
 | `backend/database/010_course_materials_storage.sql` | Bucket de materiais de apoio |
 | `backend/database/011_course_videos_storage.sql` | Bucket de vídeos |
 | `backend/database/012_enrollment_last_access.sql` | Última aula acessada em cada matrícula |
+| `backend/database/013_course_access_period.sql` | Prazo de acesso das matrículas |
+| `backend/database/014_lesson_description_credit.sql` | Descrição das aulas e crédito dos vídeos |
 
 Em um banco que já possuía o papel `teacher`, execute também `003_admin_role.sql`.
 Para promover uma conta a administrador, use `004_demo_admin.sql` como modelo.
+
+Depois, cadastre o conteúdo real dos 6 cursos (vídeos do YouTube com crédito ao canal,
+quizzes e apostilas em PDF enviadas ao Storage), que substitui o conteúdo de
+demonstração dos scripts 006 e 007:
+
+```bash
+npm run seed:cursos                       # grava no banco de backend/.env
+npm run seed:cursos -- --pdf ./apostilas  # só gera as apostilas localmente
+```
+
+O conteúdo fica em `backend/scripts/cursos-reais/` e o script pode ser executado de novo:
+aulas com o mesmo título mantêm o id e o progresso dos alunos.
 
 ### 2. Variáveis de ambiente
 

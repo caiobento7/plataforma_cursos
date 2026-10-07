@@ -221,7 +221,8 @@ const LessonPlayerPage = ({ navigateTo, course, courseId, content, progress, onP
               <div>
                 <span className="st-eyebrow">Módulo {currentModuleIndex + 1} · Aula {currentLessonIndex + 1}</span>
                 <h1>{currentLesson.title}</h1>
-                <p className="ui-muted">{currentLesson.type === 'quiz' ? 'Quiz' : 'Vídeo-aula'} · {currentLesson.duration}</p>
+                <p className="ui-muted">{currentLesson.type === 'quiz' ? 'Quiz' : 'Vídeo-aula'} · {currentLesson.duration}{currentLesson.videoCredit ? ` · Vídeo: ${currentLesson.videoCredit}` : ''}</p>
+                {currentLesson.description && <p className="pl-description">{currentLesson.description}</p>}
               </div>
               {currentLesson.type === 'video' && (
                 <button type="button" className={`ui-btn ${isCurrentCompleted ? 'ui-btn-secondary pl-done' : 'ui-btn-primary'}`} onClick={handleToggleCompletion}>

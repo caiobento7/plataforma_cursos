@@ -380,6 +380,36 @@ app.post('/api/auth/change-password', requireAuth, async (request, response) => 
   return response.json({ message: 'Senha atualizada com sucesso.' });
 });
 
+// Indicadores reais calculados das matrículas: total por curso, novos alunos e
+// faturamento dos últimos 30 dias (pelo preço atual do curso). São somados aos
+// números de demonstração das colunas de courses.
+const getRealCourseStats = async () => {
+  const { data, error } = await supabaseAdmin.from('enrollments').select('course_id, enrolled_at, course:courses (price)');
+  if (error) return new Map();
+  const since = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const stats = new Map();
+  data.forEach((enrollment) => {
+    const current = stats.get(enrollment.course_id) || { enrollments: 0, newStudents30d: 0, revenue30d: 0 };
+    current.enrollments += 1;
+    if (new Date(enrollment.enrolled_at).getTime() >= since) {
+      current.newStudents30d += 1;
+      current.revenue30d += Number(enrollment.course?.price) || 0;
+    }
+    stats.set(enrollment.course_id, current);
+  });
+  return stats;
+};
+
+const withRealStats = (course, stats) => {
+  const real = stats.get(course.id) || { enrollments: 0, newStudents30d: 0, revenue30d: 0 };
+  return {
+    ...course,
+    enrollment_count: (Number(course.enrollment_count) || 0) + real.enrollments,
+    new_students_30d: (Number(course.new_students_30d) || 0) + real.newStudents30d,
+    revenue_30d: (Number(course.revenue_30d) || 0) + real.revenue30d,
+  };
+};
+
 app.get('/api/courses', async (_request, response) => {
   const { data, error } = await supabaseAdmin
     .from('courses')
@@ -390,11 +420,12 @@ app.get('/api/courses', async (_request, response) => {
     return response.status(500).json({ error: 'Não foi possível carregar os cursos.' });
   }
 
-  return response.json(data);
+  const stats = await getRealCourseStats();
+  return response.json(data.map((course) => withRealStats(course, stats)));
 });
 
 app.get('/api/admin/analytics', requireAuth, requireAdmin, async (_request, response) => {
-  const { data: courses, error } = await supabaseAdmin
+  const { data: demoCourses, error } = await supabaseAdmin
     .from('courses')
     .select('id, title, rating, review_count, enrollment_count, revenue_30d, new_students_30d');
 
@@ -402,6 +433,9 @@ app.get('/api/admin/analytics', requireAuth, requireAdmin, async (_request, resp
     console.error('Erro ao carregar indicadores do Supabase:', error.message);
     return response.status(500).json({ error: 'Não foi possível carregar os indicadores.' });
   }
+
+  const stats = await getRealCourseStats();
+  const courses = (demoCourses || []).map((course) => withRealStats(course, stats));
 
   const totals = (courses || []).reduce((summary, course) => {
     const reviewCount = Number(course.review_count) || 0;
@@ -684,7 +718,7 @@ const fetchCourseContent = async (courseId) => {
   const moduleIds = modules.map((module) => module.id);
   const { data: lessons, error: lessonsError } = await supabaseAdmin
     .from('lessons')
-    .select('id, module_id, title, duration, content_type, video_url, document_url, sort_order')
+    .select('id, module_id, title, duration, content_type, video_url, document_url, description, video_credit, sort_order')
     .in('module_id', moduleIds)
     .order('sort_order');
 
@@ -738,6 +772,8 @@ const fetchCourseContent = async (courseId) => {
       type: lesson.content_type,
       videoUrl: lesson.video_url,
       documentUrl: lesson.document_url,
+      description: lesson.description,
+      videoCredit: lesson.video_credit,
       quizData: quiz ? { passMark: quiz.pass_mark, questions: questionsByQuiz.get(quiz.id) || [] } : undefined,
     };
     const moduleLessons = lessonsByModule.get(lesson.module_id) || [];
@@ -797,6 +833,11 @@ const parseCourseContentPayload = (modules) => {
       if (lessonId && seenLessonIds.has(lessonId)) return { error: 'Há aulas duplicadas no conteúdo.' };
       if (lessonId) seenLessonIds.add(lessonId);
 
+      const description = typeof lesson.description === 'string' ? lesson.description.trim() : '';
+      const videoCredit = typeof lesson.videoCredit === 'string' ? lesson.videoCredit.trim() : '';
+      if (description.length > 1000) return { error: `A descrição da aula "${title}" deve ter no máximo 1000 caracteres.` };
+      if (videoCredit.length > 120) return { error: `O crédito do vídeo da aula "${title}" deve ter no máximo 120 caracteres.` };
+
       if (type === 'video') {
         if (!isOptionalUrl(lesson.videoUrl) || !isOptionalUrl(lesson.documentUrl)) {
           return { error: `Os links da aula "${title}" devem começar com http:// ou https://.` };
@@ -808,6 +849,8 @@ const parseCourseContentPayload = (modules) => {
           type,
           videoUrl: lesson.videoUrl?.trim() || null,
           documentUrl: lesson.documentUrl?.trim() || null,
+          description: description || null,
+          videoCredit: videoCredit || null,
         });
         continue;
       }
@@ -827,6 +870,8 @@ const parseCourseContentPayload = (modules) => {
         type,
         videoUrl: null,
         documentUrl: null,
+        description: description || null,
+        videoCredit: null,
         quizData: {
           passMark,
           questions: questions.map((question) => ({
@@ -854,7 +899,7 @@ const getOptionalUser = async (request) => {
 };
 
 // Só a grade (títulos, tipos e durações), para quem não tem acesso ao curso.
-const toSyllabusLesson = ({ id, title, duration, type }) => ({ id, title, duration, type });
+const toSyllabusLesson = ({ id, title, duration, type, description }) => ({ id, title, duration, type, description });
 
 // Conteúdo para o aluno matriculado: vídeos, materiais e perguntas do quiz,
 // mas sem a resposta correta, que fica só no servidor.

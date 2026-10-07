@@ -10,7 +10,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:api": "node backend/tests/run.mjs"
+    "test:api": "node backend/tests/run.mjs",
+    "seed:cursos": "node backend/scripts/seed-cursos-reais.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

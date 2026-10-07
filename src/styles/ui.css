@@ -850,3 +850,5 @@ body { background: var(--ui-bg); color: var(--ui-ink); -webkit-font-smoothing: a
 .pl-expired > svg { color: var(--ui-amber); }
 .pl-expired-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; }
 .ui-buy .ui-alert { margin: 0; }
+.pl-description { max-width: 720px; margin-top: 10px; color: #334155; font-size: 15px; line-height: 1.6; white-space: pre-line; }
+.course-editor textarea { width: 100%; padding: 10px 12px; resize: vertical; }
