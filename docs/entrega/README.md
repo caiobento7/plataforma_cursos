@@ -4,7 +4,7 @@ Materiais da entrega da disciplina Princípios de Engenharia de Software (UERJ/I
 
 | Arquivo | Conteúdo |
 |---|---|
-| `CursoLab-apresentacao.pptx` | Slides da apresentação (25), no template da disciplina, com notas do apresentador |
+| `CursoLab-apresentacao.pptx` | Slides da apresentação (28), com foco na arquitetura, no template da disciplina, com notas do apresentador |
 | `CursoLab-apresentacao.pdf` | Os mesmos slides em PDF, para apresentar pelo navegador |
 | `roteiro-de-fala.md` | Texto de cada slide para ensaiar a apresentação |
 | `CursoLab-relatorio.pdf` | Relatório final (21 capítulos, 26 figuras, 12 tabelas) |
