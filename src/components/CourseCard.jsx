@@ -1,18 +1,29 @@
 import { Star } from 'lucide-react';
+import { formatPrice } from '../utils/courseUtils.js';
 
-const CourseCard = ({ course, navigateTo }) => {
+const CourseCard = ({ course, navigateTo, isEnrolled = false }) => {
   if (!course) return null;
-  const price = course.price === 0 ? 'Gratuito' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(course.price);
+  const openDetails = () => navigateTo('details', course.id);
 
   return (
-    <article className="course-card">
-      <img src={course.imageUrl} alt="" className="course-image" loading="lazy" onError={(event) => { event.currentTarget.src = 'https://placehold.co/600x400/102a43/ffffff?text=Curso'; }} />
-      <div className="course-info">
-        <div className="course-course-type">CURSO ONLINE</div>
-        <h3 className="course-title">{course.title}</h3>
-        <p className="course-instructor">Por {course.instructor}</p>
-        <div className="course-details-line"><span>{course.level}</span><span className="course-rating"><Star size={14} fill="currentColor" aria-hidden="true" /> {course.rating}</span></div>
-        <div className="course-card-footer"><strong className="course-price">{price}</strong><button className="course-details-button" type="button" onClick={() => navigateTo('details', course.id)}>Conhecer curso</button></div>
+    <article className="ui-course">
+      <button type="button" className="ui-course-media" onClick={openDetails} aria-label={`Ver detalhes de ${course.title}`}>
+        <img src={course.imageUrl} alt="" loading="lazy" onError={(event) => { event.currentTarget.src = 'https://placehold.co/600x450/102a43/ffffff?text=CursoLab'; }} />
+      </button>
+      <div className="ui-course-body">
+        <div className="ui-course-meta">
+          <span>{course.level}</span>
+          <span className="ui-course-rating"><Star size={14} fill="currentColor" aria-hidden="true" /> {course.rating.toFixed(1)}</span>
+        </div>
+        <h3>{course.title}</h3>
+        <div className="ui-course-footer">
+          {isEnrolled
+            ? <span className="ui-price free">Matriculado</span>
+            : <span className={`ui-price ${course.price === 0 ? 'free' : ''}`}>{formatPrice(course.price)}</span>}
+          <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={isEnrolled ? () => navigateTo('player', course.id) : openDetails}>
+            {isEnrolled ? 'Acessar' : 'Ver curso'}
+          </button>
+        </div>
       </div>
     </article>
   );
