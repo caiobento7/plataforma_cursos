@@ -430,7 +430,8 @@ verificado no servidor:
 - **Quiz corrigido no servidor.** As respostas do aluno são enviadas à API, que calcula a
   nota, compara com a nota mínima e, se aprovado, registra a conclusão. Um quiz não pode
   ser marcado como concluído sem ser feito.
-- **Certificado.** A regra dos 60% de conclusão é conferida pela API antes de devolver os
+- **Certificado.** A regra de liberação (todas as aulas concluídas e nota final de pelo
+  menos 70%, a média da melhor nota de cada quiz) é conferida pela API antes de devolver os
   dados do certificado.
 
 A verificação é feita no servidor, e não na interface. Ocultar um botão no cliente não
@@ -495,7 +496,7 @@ O banco relacional é composto por dez tabelas:
 | `lessons` | Aulas de cada módulo, do tipo vídeo ou quiz |
 | `quizzes` | Configuração do quiz, incluindo a nota mínima |
 | `quiz_questions` | Perguntas, alternativas e resposta correta |
-| `lesson_progress` | Registro de conclusão de cada aula por aluno |
+| `lesson_progress` | Registro de conclusão de cada aula por aluno e melhor nota de cada quiz |
 | `lesson_questions` | Dúvidas dos alunos nas aulas e respectivas respostas |
 | `support_tickets` | Chamados de suporte, com status e resposta da equipe |
 
@@ -546,7 +547,7 @@ por recurso. A coluna "Acesso" indica a proteção aplicada.
 | GET | `/api/admin/lesson-questions` | Gestão | Lista as dúvidas de todos os cursos |
 | POST | `/api/enrollments` | Autenticado | Efetiva a matrícula |
 | GET | `/api/enrollments/me` | Autenticado | Cursos do aluno com progresso e próxima aula |
-| GET | `/api/enrollments/:courseId/certificate` | Autenticado | Dados do certificado (a partir de 60%) |
+| GET | `/api/enrollments/:courseId/certificate` | Autenticado | Dados do certificado (100% das aulas e nota final ≥ 70%) |
 | POST | `/api/support-tickets` | Autenticado | Abre um chamado |
 | GET | `/api/support-tickets/me` | Autenticado | Lista os chamados do aluno |
 | PATCH | `/api/support-tickets/:id/close` | Autenticado | O aluno encerra o próprio chamado |
@@ -606,7 +607,7 @@ Cada requisito é classificado em uma de três situações:
 | RF13 | Marcar e desmarcar a conclusão de uma aula | 4.1.6 | Implementado | |
 | RF14 | Ter os módulos liberados conforme a progressão | 4.1.6 | Implementado | |
 | RF15 | Responder quizzes e receber a nota imediatamente | 4.1.7 | Implementado | Correção feita no servidor |
-| RF16 | Emitir certificado de conclusão em PDF | 4.1.8 | Implementado | Liberado a partir de 60%; nome, carga horária, data e código |
+| RF16 | Emitir certificado de conclusão em PDF | 4.1.8 | Implementado | Liberado com 100% das aulas e nota final ≥ 70%; nome, carga horária, nota, data e código |
 | RF17 | Enviar dúvidas em uma aula | 4.1.9 | Parcial | Sem notificação quando a dúvida é respondida |
 | RF18 | Avaliar o curso com nota e comentário | 4.1.10 | Não implementado | |
 | RF19 | Abrir e acompanhar tickets de suporte | 4.1.11 | Implementado | Status Aberto, Respondido e Encerrado |

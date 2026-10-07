@@ -34,7 +34,8 @@ React + Vite   ->   API REST (Express)   ->   Supabase (PostgreSQL + Auth + Stor
   corrigidos no servidor e módulos liberados conforme a progressão.
 - "Continue de onde parou": retoma o curso na última aula acessada.
 - Dúvidas em cada aula, respondidas pelo instrutor.
-- Certificado em PDF, liberado ao concluir 60% das aulas.
+- Certificado em PDF, liberado ao concluir todas as aulas com nota final de pelo menos 70%
+  nos quizzes (média da melhor nota de cada quiz).
 - Chamados de suporte, edição do nome e troca de senha.
 
 **Administrador**
@@ -74,6 +75,7 @@ No SQL Editor do Supabase, execute nesta ordem:
 | `backend/database/012_enrollment_last_access.sql` | Última aula acessada em cada matrícula |
 | `backend/database/013_course_access_period.sql` | Prazo de acesso das matrículas |
 | `backend/database/014_lesson_description_credit.sql` | Descrição das aulas e crédito dos vídeos |
+| `backend/database/015_quiz_score.sql` | Melhor nota de cada quiz, usada no certificado |
 
 Em um banco que já possuía o papel `teacher`, execute também `003_admin_role.sql`.
 Para promover uma conta a administrador, use `004_demo_admin.sql` como modelo.

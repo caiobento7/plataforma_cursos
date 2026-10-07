@@ -244,7 +244,7 @@ const LessonPlayerPage = ({ navigateTo, course, courseId, content, progress, onP
                 <Award size={28} aria-hidden="true" />
                 <div>
                   <strong>Você chegou ao fim do curso!</strong>
-                  <span>{localProgress >= 60 ? 'Seu certificado já pode ser emitido no painel.' : 'Conclua as aulas pendentes para liberar o certificado.'}</span>
+                  <span>{localProgress >= 100 ? 'Todas as aulas concluídas. Confira seu certificado no painel.' : 'Conclua as aulas pendentes para liberar o certificado.'}</span>
                 </div>
                 <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => navigateTo('studentDashboard')}>Ir para o painel</button>
               </div>

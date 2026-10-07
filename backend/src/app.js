@@ -1220,6 +1220,16 @@ app.post('/api/lessons/:lessonId/quiz-attempt', requireAuth, async (request, res
   const score = Math.round((correctAnswers / questions.length) * 100);
   const passed = score >= quiz.pass_mark;
 
+  // A nota que vale para o certificado é a melhor tentativa aprovada: refazer o
+  // quiz pode subir a nota, nunca baixar.
+  const { data: previous } = await supabaseAdmin
+    .from('lesson_progress')
+    .select('quiz_score')
+    .eq('student_id', request.user.id)
+    .eq('lesson_id', lessonId)
+    .maybeSingle();
+  const bestScore = passed ? Math.max(score, previous?.quiz_score ?? 0) : previous?.quiz_score ?? null;
+
   if (passed) {
     const { error } = await supabaseAdmin
       .from('lesson_progress')
@@ -1228,11 +1238,12 @@ app.post('/api/lessons/:lessonId/quiz-attempt', requireAuth, async (request, res
         lesson_id: lessonId,
         completed: true,
         completed_at: new Date().toISOString(),
+        quiz_score: bestScore,
       }, { onConflict: 'student_id,lesson_id' });
     if (error) return response.status(500).json({ error: 'Não foi possível registrar a aprovação.' });
   }
 
-  return response.json({ score, correctAnswers, totalQuestions: questions.length, passMark: quiz.pass_mark, passed });
+  return response.json({ score, bestScore, correctAnswers, totalQuestions: questions.length, passMark: quiz.pass_mark, passed });
 });
 
 app.get('/api/lessons/:lessonId/questions', requireAuth, async (request, response) => {
@@ -1443,8 +1454,9 @@ app.post('/api/enrollments', requireAuth, async (request, response) => {
   return response.status(201).json(data);
 });
 
-// Percentual mínimo de aulas concluídas para emitir o certificado (RF16).
-const certificateMinProgress = 60;
+// Regra do certificado (RF16): todas as aulas concluídas e nota final de pelo
+// menos 70%. A nota final é a média da melhor nota de cada quiz do curso.
+const certificateMinScore = 70;
 
 // Converte durações livres do editor ("15 min", "1h 30min", "1h", "20") em minutos.
 const parseDurationMinutes = (duration) => {
@@ -1511,6 +1523,7 @@ const getCoursesProgress = async (studentId, courseIds, lastAccessByCourse = new
     lastCompletedAt: null,
     lastAccessedAt: lastAccessByCourse.get(courseId)?.accessedAt || null,
     completedLessonIds: [],
+    quizScores: [],
     nextLesson: null,
   }]));
   if (courseIds.length === 0) return summary;
@@ -1531,6 +1544,7 @@ const getCoursesProgress = async (studentId, courseIds, lastAccessByCourse = new
   if (lessons.length === 0) return summary;
 
   const courseByLesson = new Map();
+  const quizLessonIds = new Set(lessons.filter((lesson) => lesson.content_type === 'quiz').map((lesson) => lesson.id));
   lessons.forEach((lesson) => {
     const courseId = courseByModule.get(lesson.module_id);
     courseByLesson.set(lesson.id, courseId);
@@ -1541,11 +1555,24 @@ const getCoursesProgress = async (studentId, courseIds, lastAccessByCourse = new
 
   const { data: progress, error: progressError } = await supabaseAdmin
     .from('lesson_progress')
-    .select('lesson_id, completed_at')
+    .select('lesson_id, completed_at, quiz_score')
     .eq('student_id', studentId)
     .eq('completed', true)
     .in('lesson_id', lessons.map((lesson) => lesson.id));
   if (progressError) return null;
+
+  // Quizzes aprovados antes de a nota ser gravada (015_quiz_score.sql) contam
+  // com a nota mínima do quiz, que foi a condição para a aprovação.
+  const withoutScore = progress.filter((item) => quizLessonIds.has(item.lesson_id) && item.quiz_score === null);
+  const passMarks = new Map();
+  if (withoutScore.length > 0) {
+    const { data: quizzes, error: quizzesError } = await supabaseAdmin
+      .from('quizzes')
+      .select('lesson_id, pass_mark')
+      .in('lesson_id', withoutScore.map((item) => item.lesson_id));
+    if (quizzesError) return null;
+    quizzes.forEach((quiz) => passMarks.set(quiz.lesson_id, quiz.pass_mark));
+  }
 
   const completedIds = new Set();
   progress.forEach((item) => {
@@ -1553,6 +1580,7 @@ const getCoursesProgress = async (studentId, courseIds, lastAccessByCourse = new
     const course = summary.get(courseByLesson.get(item.lesson_id));
     course.completedLessons += 1;
     course.completedLessonIds.push(item.lesson_id);
+    if (quizLessonIds.has(item.lesson_id)) course.quizScores.push(item.quiz_score ?? passMarks.get(item.lesson_id) ?? 0);
     if (item.completed_at && (!course.lastCompletedAt || item.completed_at > course.lastCompletedAt)) {
       course.lastCompletedAt = item.completed_at;
     }
@@ -1583,6 +1611,10 @@ const toProgressResponse = (summary) => {
   const percent = summary.totalLessons > 0
     ? Math.round((summary.completedLessons / summary.totalLessons) * 100)
     : 0;
+  const quizScore = summary.quizScores.length > 0
+    ? Math.round(summary.quizScores.reduce((total, score) => total + score, 0) / summary.quizScores.length)
+    : null;
+  const allLessonsCompleted = summary.totalLessons > 0 && summary.completedLessons >= summary.totalLessons;
   return {
     completedLessons: summary.completedLessons,
     totalLessons: summary.totalLessons,
@@ -1590,7 +1622,9 @@ const toProgressResponse = (summary) => {
     lastCompletedAt: summary.lastCompletedAt,
     lastAccessedAt: summary.lastAccessedAt,
     nextLesson: summary.nextLesson,
-    certificateAvailable: percent >= certificateMinProgress,
+    quizScore,
+    certificateMinScore,
+    certificateAvailable: allLessonsCompleted && (quizScore === null || quizScore >= certificateMinScore),
   };
 };
 
@@ -1705,7 +1739,9 @@ app.get('/api/enrollments/:courseId/certificate', requireAuth, async (request, r
   const progress = toProgressResponse(summary);
   if (!progress.certificateAvailable) {
     return response.status(403).json({
-      error: `O certificado é liberado com ${certificateMinProgress}% do curso concluído. Seu progresso atual é ${progress.percent}%.`,
+      error: progress.percent < 100
+        ? `O certificado é liberado ao concluir todas as aulas do curso. Seu progresso atual é ${progress.percent}%.`
+        : `O certificado exige nota final de pelo menos ${certificateMinScore}% nos quizzes. Sua nota atual é ${progress.quizScore}%. Refaça os quizzes para melhorar a nota.`,
     });
   }
 
@@ -1721,6 +1757,7 @@ app.get('/api/enrollments/:courseId/certificate', requireAuth, async (request, r
     workloadHours: Math.max(1, Math.ceil(summary.totalMinutes / 60)),
     completedAt: summary.lastCompletedAt,
     progressPercent: progress.percent,
+    quizScore: progress.quizScore,
     code: `CL-${code}`,
   });
 });
