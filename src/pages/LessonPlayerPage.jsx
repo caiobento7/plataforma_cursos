@@ -127,11 +127,10 @@ const LessonPlayerPage = ({ navigateTo, course, courseId, content, progress, onP
       onProgressUpdate(courseId, { completed: newCompleted, changedLesson: { id: currentLesson.id, completed: willComplete } });
     };
 
+    // A aprovação já foi gravada pela API ao corrigir o quiz; aqui só se
+    // atualiza o estado local (sem changedLesson, para não gravar de novo).
     const handleQuizPass = () => {
-      onProgressUpdate(courseId, {
-        completed: new Set(completedLessons).add(currentLesson.id),
-        changedLesson: { id: currentLesson.id, completed: true },
-      });
+      onProgressUpdate(courseId, { completed: new Set(completedLessons).add(currentLesson.id) });
     };
 
     const handleSelectLesson = (moduleIndex, lessonIndex) => {
@@ -162,7 +161,7 @@ const LessonPlayerPage = ({ navigateTo, course, courseId, content, progress, onP
       if (currentLesson.type === 'quiz') {
         return (
           <div className="pl-stage quiz">
-            <QuizComponent key={currentLesson.id} quizData={currentLesson.quizData} alreadyPassed={isCurrentCompleted} onQuizPass={handleQuizPass} onProceed={handleNext} />
+            <QuizComponent key={currentLesson.id} lessonId={currentLesson.id} quizData={currentLesson.quizData} alreadyPassed={isCurrentCompleted} onQuizPass={handleQuizPass} onProceed={handleNext} />
           </div>
         );
       }
