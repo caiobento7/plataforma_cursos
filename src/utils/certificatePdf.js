@@ -9,8 +9,9 @@ const formatLongDate = (value) => new Date(value || Date.now()).toLocaleDateStri
   year: 'numeric',
 });
 
-// Pessoa fictícia: o projeto é acadêmico e a assinatura é apenas ilustrativa.
-const signatoryName = 'Helena Duarte';
+// Assinatura ilustrativa do autor do projeto (trabalho acadêmico).
+const signatoryName = 'Caio Bento';
+const signatoryRole = 'Coordenador Acadêmico · CursoLab';
 
 const safeFileName = (text) => text.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80) || 'curso';
 
@@ -85,7 +86,7 @@ export const buildCertificatePdf = async (certificate) => {
     { align: 'center' },
   );
 
-  // Assinatura (fictícia) em fonte cursiva, com tinta azul
+  // Assinatura em fonte cursiva, com tinta azul
   const signatureY = height - 42;
   doc.setFont('GreatVibes', 'normal');
   doc.setFontSize(30);
@@ -101,7 +102,7 @@ export const buildCertificatePdf = async (certificate) => {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(110, 120, 135);
-  doc.text('Coordenação Acadêmica · CursoLab', center, signatureY + 11, { align: 'center' });
+  doc.text(signatoryRole, center, signatureY + 11, { align: 'center' });
 
   // Selo dourado, o mesmo da aba de certificados do painel
   const sealX = width - 62;
