@@ -1,3 +1,6 @@
+// Nota com uma casa decimal e vírgula: 4,7
+export const formatRating = (value) => (Number(value) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
 export const formatPrice = (price) => (price === 0
   ? 'Gratuito'
   : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price));

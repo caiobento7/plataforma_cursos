@@ -1,5 +1,5 @@
 import { Star } from 'lucide-react';
-import { formatPrice } from '../utils/courseUtils.js';
+import { formatPrice, formatRating } from '../utils/courseUtils.js';
 
 const CourseCard = ({ course, navigateTo, isEnrolled = false }) => {
   if (!course) return null;
@@ -13,7 +13,7 @@ const CourseCard = ({ course, navigateTo, isEnrolled = false }) => {
       <div className="ui-course-body">
         <div className="ui-course-meta">
           <span>{course.level}</span>
-          <span className="ui-course-rating"><Star size={14} fill="currentColor" aria-hidden="true" /> {course.rating.toFixed(1)}</span>
+          <span className="ui-course-rating"><Star size={14} fill="currentColor" aria-hidden="true" /> {formatRating(course.rating)}</span>
         </div>
         <h3>{course.title}</h3>
         <div className="ui-course-footer">

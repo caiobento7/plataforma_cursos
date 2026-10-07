@@ -3,8 +3,8 @@ import { LogOut, ShoppingBag } from 'lucide-react';
 import cursoLabMark from '../assets/cursolab-mark.png';
 
 const studentLinks = [
-  { page: 'studentDashboard', label: 'Meus cursos' },
-  { page: 'home', label: 'Catálogo', also: ['details'] },
+  { page: 'studentDashboard', label: 'Meus cursos', also: ['player'] },
+  { page: 'home', label: 'Catálogo', also: ['details', 'cart', 'checkout'] },
 ];
 
 // Cabeçalho da área logada. Visitantes veem o cabeçalho próprio da landing.
