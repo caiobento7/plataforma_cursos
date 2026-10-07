@@ -1,0 +1,81 @@
+erDiagram
+  PROFILES ||--o{ ENROLLMENTS : "matricula"
+  COURSES ||--o{ ENROLLMENTS : "recebe"
+  COURSES ||--o{ COURSE_MODULES : "tem"
+  COURSE_MODULES ||--o{ LESSONS : "tem"
+  LESSONS ||--o| QUIZZES : "pode ser"
+  QUIZZES ||--o{ QUIZ_QUESTIONS : "tem"
+  PROFILES ||--o{ LESSON_PROGRESS : "registra"
+  LESSONS ||--o{ LESSON_PROGRESS : "concluída em"
+  LESSONS ||--o{ LESSON_QUESTIONS : "recebe"
+  PROFILES ||--o{ LESSON_QUESTIONS : "pergunta"
+  PROFILES ||--o{ SUPPORT_TICKETS : "abre"
+  COURSES |o--o{ SUPPORT_TICKETS : "refere-se a"
+  PROFILES {
+    uuid id PK
+    text full_name
+    text role "student ou admin"
+  }
+  COURSES {
+    bigint id PK
+    text title
+    numeric price
+    text level
+    int access_months
+  }
+  ENROLLMENTS {
+    bigint id PK
+    uuid student_id FK
+    bigint course_id FK
+    timestamptz enrolled_at
+    timestamptz expires_at
+    bigint last_lesson_id FK
+  }
+  COURSE_MODULES {
+    bigint id PK
+    bigint course_id FK
+    text title
+    int sort_order
+  }
+  LESSONS {
+    bigint id PK
+    bigint module_id FK
+    text title
+    text content_type "video ou quiz"
+    text video_url
+    text document_url
+    text video_credit
+  }
+  QUIZZES {
+    bigint id PK
+    bigint lesson_id FK
+    int pass_mark
+  }
+  QUIZ_QUESTIONS {
+    bigint id PK
+    bigint quiz_id FK
+    text question_text
+    jsonb options
+    text correct_answer
+  }
+  LESSON_PROGRESS {
+    bigint id PK
+    uuid student_id FK
+    bigint lesson_id FK
+    boolean completed
+    int quiz_score
+  }
+  LESSON_QUESTIONS {
+    bigint id PK
+    bigint lesson_id FK
+    uuid author_id FK
+    text question_text
+    text answer_text
+  }
+  SUPPORT_TICKETS {
+    bigint id PK
+    uuid student_id FK
+    bigint course_id FK
+    text subject
+    text status "open, answered, closed"
+  }
