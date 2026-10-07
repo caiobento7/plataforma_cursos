@@ -9,12 +9,20 @@ const formatLongDate = (value) => new Date(value || Date.now()).toLocaleDateStri
   year: 'numeric',
 });
 
+// Pessoa fictícia: o projeto é acadêmico e a assinatura é apenas ilustrativa.
+const signatoryName = 'Helena Duarte';
+
 const safeFileName = (text) => text.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80) || 'curso';
 
 // Monta o documento; separado do download para poder ser testado fora do navegador.
 export const buildCertificatePdf = async (certificate) => {
-  const { jsPDF } = await import('jspdf');
+  const [{ jsPDF }, { signatureFontBase64 }] = await Promise.all([
+    import('jspdf'),
+    import('./signatureFont.js'),
+  ]);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  doc.addFileToVFS('GreatVibes-Regular.ttf', signatureFontBase64);
+  doc.addFont('GreatVibes-Regular.ttf', 'GreatVibes', 'normal');
   const width = doc.internal.pageSize.getWidth();
   const height = doc.internal.pageSize.getHeight();
   const center = width / 2;
@@ -77,14 +85,23 @@ export const buildCertificatePdf = async (certificate) => {
     { align: 'center' },
   );
 
-  // Assinatura
+  // Assinatura (fictícia) em fonte cursiva, com tinta azul
   const signatureY = height - 42;
+  doc.setFont('GreatVibes', 'normal');
+  doc.setFontSize(30);
+  doc.setTextColor(30, 58, 138);
+  doc.text(signatoryName, center, signatureY - 2.5, { align: 'center' });
   doc.setDrawColor(150, 160, 175);
   doc.setLineWidth(0.3);
   doc.line(center - 40, signatureY, center + 40, signatureY);
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(16, 42, 67);
-  doc.text('Equipe CursoLab', center, signatureY + 6, { align: 'center' });
+  doc.text(signatoryName, center, signatureY + 6, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(110, 120, 135);
+  doc.text('Coordenação Acadêmica · CursoLab', center, signatureY + 11, { align: 'center' });
 
   // Selo dourado, o mesmo da aba de certificados do painel
   const sealX = width - 62;
