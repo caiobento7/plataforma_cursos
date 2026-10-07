@@ -105,6 +105,7 @@ export const api = {
   enroll: (courseId) => request('/api/enrollments', { method: 'POST', body: JSON.stringify({ courseId }) }),
   getMySupportTickets: () => request('/api/support-tickets/me'),
   createSupportTicket: (ticket) => request('/api/support-tickets', { method: 'POST', body: JSON.stringify(ticket) }),
+  closeMySupportTicket: (ticketId) => request(`/api/support-tickets/${ticketId}/close`, { method: 'PATCH' }),
   getAdminSupportTickets: () => request('/api/admin/support-tickets'),
   updateAdminSupportTicket: (ticketId, ticket) => request(`/api/admin/support-tickets/${ticketId}`, { method: 'PUT', body: JSON.stringify(ticket) }),
   login: (email, password) => request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),

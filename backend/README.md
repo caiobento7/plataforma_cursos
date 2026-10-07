@@ -54,6 +54,13 @@ Teste a saúde do serviço em `http://localhost:3001/api/health`.
 | `PATCH` | `/api/questions/:questionId/answer` | Responde uma dúvida; exclusivo do administrador. |
 | `POST` | `/api/enrollments` | Cria uma matrícula para o aluno autenticado. |
 | `GET` | `/api/enrollments/me` | Lista as matrículas do aluno autenticado. |
+| `PUT` | `/api/courses/:courseId/content` | Salva módulos, aulas e quizzes do curso numa transação; exclusivo do administrador. |
+| `POST` | `/api/courses/:courseId/uploads` | Gera URL assinada para enviar vídeo ou material ao Storage; exclusivo do administrador. |
+| `POST` | `/api/support-tickets` | Aluno abre um chamado (geral ou de um curso em que está matriculado). |
+| `GET` | `/api/support-tickets/me` | Lista os chamados do aluno autenticado. |
+| `PATCH` | `/api/support-tickets/:ticketId/close` | Aluno marca o próprio chamado como resolvido. |
+| `GET` | `/api/admin/support-tickets` | Lista todos os chamados; exclusivo do administrador. |
+| `PUT` | `/api/admin/support-tickets/:ticketId` | Responde ou encerra um chamado; exclusivo do administrador. |
 
 Para as rotas protegidas, envie o cabeçalho:
 

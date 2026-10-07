@@ -1,8 +1,9 @@
-import { Award, BookOpen, CircleCheck, Headphones, Play, Settings, TicketPlus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Award, BookOpen, CircleCheck, Headphones, Play, RefreshCw, Settings, TicketPlus } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import studentDashboardBackground from '../assets/student-dashboard-background.png';
 import { api } from '../services/api.js';
 import { calculateProgress } from '../utils/courseUtils.js';
+import { formatTicketDate, ticketLimits, ticketStatusLabels } from '../utils/ticketUtils.js';
 
 const StudentSectionHeader = ({ title, description }) => (
   <header className="student-section-header">
@@ -12,49 +13,80 @@ const StudentSectionHeader = ({ title, description }) => (
   </header>
 );
 
-const ticketStatusLabel = (status) => ({
-  answered: 'Respondido',
-  closed: 'Encerrado',
-}[status] || 'Aguardando resposta');
-
 const StudentDashboardPage = ({ navigateTo, purchasedCourses, courseProgress, coursesContentDB }) => {
   const [activeTab, setActiveTab] = useState('my-courses');
   const [tickets, setTickets] = useState([]);
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false);
+  const [ticketsError, setTicketsError] = useState('');
   const [ticketSubject, setTicketSubject] = useState('');
   const [ticketMessage, setTicketMessage] = useState('');
   const [ticketCourse, setTicketCourse] = useState('geral');
-  const [ticketFeedback, setTicketFeedback] = useState('');
+  const [ticketFeedback, setTicketFeedback] = useState(null); // { type: 'success' | 'error', text }
   const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  const [closingTicketId, setClosingTicketId] = useState(null);
 
-  useEffect(() => {
-    let isActive = true;
-    api.getMySupportTickets()
-      .then((loadedTickets) => { if (isActive) setTickets(loadedTickets); })
-      .catch(() => { if (isActive) setTicketFeedback('Não foi possível carregar seus chamados.'); });
-    return () => { isActive = false; };
+  const loadTickets = useCallback(async () => {
+    setIsLoadingTickets(true);
+    setTicketsError('');
+    try {
+      setTickets(await api.getMySupportTickets());
+    } catch {
+      setTicketsError('Não foi possível carregar seus chamados.');
+    } finally {
+      setIsLoadingTickets(false);
+    }
   }, []);
+
+  // Recarrega sempre que a aba é aberta, para trazer respostas novas da equipe.
+  useEffect(() => {
+    if (activeTab === 'support') loadTickets();
+  }, [activeTab, loadTickets]);
 
   const handleSupportSubmit = async (event) => {
     event.preventDefault();
-    if (!ticketSubject.trim() || !ticketMessage.trim()) return;
+    const subject = ticketSubject.trim();
+    const message = ticketMessage.trim();
 
-    setTicketFeedback('');
+    if (subject.length < ticketLimits.subject.min) {
+      setTicketFeedback({ type: 'error', text: `O assunto deve ter pelo menos ${ticketLimits.subject.min} caracteres.` });
+      return;
+    }
+    if (message.length < ticketLimits.message.min) {
+      setTicketFeedback({ type: 'error', text: `Descreva o problema com pelo menos ${ticketLimits.message.min} caracteres.` });
+      return;
+    }
+
+    setTicketFeedback(null);
     setIsSubmittingTicket(true);
     try {
       const ticket = await api.createSupportTicket({
         courseId: ticketCourse === 'geral' ? null : Number(ticketCourse),
-        subject: ticketSubject,
-        message: ticketMessage,
+        subject,
+        message,
       });
       setTickets((previous) => [ticket, ...previous]);
       setTicketCourse('geral');
       setTicketSubject('');
       setTicketMessage('');
-      setTicketFeedback('Chamado enviado. A equipe responderá por aqui.');
+      setTicketFeedback({ type: 'success', text: 'Chamado enviado. A resposta da equipe aparecerá em "Meus chamados".' });
     } catch (error) {
-      setTicketFeedback(error.message);
+      setTicketFeedback({ type: 'error', text: error.message });
     } finally {
       setIsSubmittingTicket(false);
+    }
+  };
+
+  const handleCloseTicket = async (ticket) => {
+    if (!window.confirm(`Marcar o chamado "${ticket.subject}" como resolvido?`)) return;
+
+    setClosingTicketId(ticket.id);
+    try {
+      const updated = await api.closeMySupportTicket(ticket.id);
+      setTickets((previous) => previous.map((item) => (item.id === ticket.id ? updated : item)));
+    } catch (error) {
+      setTicketsError(error.message);
+    } finally {
+      setClosingTicketId(null);
     }
   };
 
@@ -106,24 +138,65 @@ const StudentDashboardPage = ({ navigateTo, purchasedCourses, courseProgress, co
     </section>
   );
 
+  const openTicketCount = tickets.filter((ticket) => ticket.status === 'open').length;
+
+  const renderTicketList = () => {
+    if (ticketsError && tickets.length === 0) return <p className="student-feedback error">{ticketsError}</p>;
+    if (isLoadingTickets && tickets.length === 0) return <p className="student-muted">Carregando chamados...</p>;
+    if (tickets.length === 0) return <p className="student-muted">Você ainda não abriu nenhum chamado.</p>;
+
+    return <>{ticketsError && <p className="student-feedback error">{ticketsError}</p>}{tickets.map((ticket) => (
+      <article key={ticket.id} className="student-ticket">
+        <div className="student-ticket-top">
+          <div>
+            <strong>{ticket.subject}</strong>
+            <small>{ticket.courseTitle} · aberto em {formatTicketDate(ticket.createdAt)}</small>
+          </div>
+          <span className={`ticket-status ${ticket.status}`}>{ticketStatusLabels[ticket.status] || ticketStatusLabels.open}</span>
+        </div>
+        <p className="student-ticket-message">{ticket.message}</p>
+        {ticket.adminResponse && (
+          <div className="student-ticket-answer">
+            <b>Resposta da equipe</b>
+            {ticket.respondedAt && <small>{formatTicketDate(ticket.respondedAt)}</small>}
+            <p>{ticket.adminResponse}</p>
+          </div>
+        )}
+        {ticket.status !== 'closed' && (
+          <button type="button" className="student-link-button" onClick={() => handleCloseTicket(ticket)} disabled={closingTicketId === ticket.id}>
+            {closingTicketId === ticket.id ? 'Encerrando...' : 'Marcar como resolvido'}
+          </button>
+        )}
+      </article>
+    ))}</>;
+  };
+
   const renderSupport = () => (
     <section className="student-section">
-      <StudentSectionHeader title="Suporte" description="Envie uma dúvida para a equipe da plataforma." />
+      <StudentSectionHeader title="Suporte" description="Envie uma dúvida para a equipe da plataforma e acompanhe as respostas." />
       <div className="student-support-grid">
-        <form className="student-form-panel" onSubmit={handleSupportSubmit}>
+        <form className="student-form-panel" onSubmit={handleSupportSubmit} noValidate>
           <div className="student-panel-heading"><TicketPlus size={18} aria-hidden="true" /><div><h3>Novo chamado</h3><p>Descreva o que aconteceu para podermos ajudar.</p></div></div>
           <label htmlFor="support-course">Tópico</label>
           <select id="support-course" value={ticketCourse} onChange={(event) => setTicketCourse(event.target.value)}><option value="geral">Geral / Plataforma</option>{purchasedCourses.map((course) => <option key={course.id} value={course.id}>Curso: {course.title}</option>)}</select>
           <label htmlFor="support-subject">Assunto</label>
-          <input id="support-subject" value={ticketSubject} onChange={(event) => setTicketSubject(event.target.value)} required />
+          <input id="support-subject" value={ticketSubject} maxLength={ticketLimits.subject.max} placeholder="Ex.: O vídeo da aula 2 não carrega" onChange={(event) => setTicketSubject(event.target.value)} />
+          <small className="student-char-count">{ticketSubject.length}/{ticketLimits.subject.max}</small>
           <label htmlFor="support-message">Mensagem</label>
-          <textarea id="support-message" rows="5" value={ticketMessage} onChange={(event) => setTicketMessage(event.target.value)} required />
-          {ticketFeedback && <p className="student-feedback">{ticketFeedback}</p>}
+          <textarea id="support-message" rows="5" value={ticketMessage} maxLength={ticketLimits.message.max} placeholder="Conte o que aconteceu, em qual tela e o que você esperava." onChange={(event) => setTicketMessage(event.target.value)} />
+          <small className="student-char-count">{ticketMessage.length}/{ticketLimits.message.max}</small>
+          {ticketFeedback && <p className={`student-feedback ${ticketFeedback.type}`} role="status">{ticketFeedback.text}</p>}
           <button type="submit" className="student-primary-action" disabled={isSubmittingTicket}>{isSubmittingTicket ? 'Enviando...' : 'Enviar chamado'}</button>
         </form>
         <section className="student-list-panel student-tickets">
-          <div className="student-panel-heading"><Headphones size={18} aria-hidden="true" /><div><h3>Meus chamados</h3><p>Acompanhe as solicitações enviadas.</p></div></div>
-          {tickets.length === 0 ? <p className="student-muted">Nenhum chamado aberto.</p> : tickets.map((ticket) => <article key={ticket.id} className="student-ticket"><div><strong>{ticket.subject}</strong><small>{ticket.courseTitle} · {new Date(ticket.createdAt).toLocaleDateString('pt-BR')}</small>{ticket.adminResponse && <p className="student-ticket-answer"><b>Resposta:</b> {ticket.adminResponse}</p>}</div><span>{ticketStatusLabel(ticket.status)}</span></article>)}
+          <div className="student-panel-heading student-tickets-heading">
+            <Headphones size={18} aria-hidden="true" />
+            <div><h3>Meus chamados</h3><p>{openTicketCount > 0 ? `${openTicketCount} aguardando resposta` : 'Acompanhe as solicitações enviadas.'}</p></div>
+            <button type="button" className="student-icon-button" onClick={loadTickets} disabled={isLoadingTickets} title="Atualizar chamados" aria-label="Atualizar chamados">
+              <RefreshCw size={15} aria-hidden="true" className={isLoadingTickets ? 'spinning' : ''} />
+            </button>
+          </div>
+          {renderTicketList()}
         </section>
       </div>
     </section>
