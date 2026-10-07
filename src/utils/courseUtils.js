@@ -1,6 +1,24 @@
 // Nota com uma casa decimal e vírgula: 4,7
 export const formatRating = (value) => (Number(value) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
+export const formatDate = (value) => (value ? new Date(value).toLocaleDateString('pt-BR') : '');
+
+const dayInMs = 24 * 60 * 60 * 1000;
+
+// Situação do acesso a um curso a partir da data de expiração da matrícula.
+export const getAccessInfo = (expiresAt) => {
+  if (!expiresAt) return { expired: false, expiresSoon: false, daysLeft: null };
+  const daysLeft = Math.ceil((new Date(expiresAt) - Date.now()) / dayInMs);
+  return { expired: daysLeft <= 0, expiresSoon: daysLeft > 0 && daysLeft <= 30, daysLeft };
+};
+
+// Data em que o acesso de uma compra feita hoje vai expirar.
+export const accessEndDate = (accessMonths = 6) => {
+  const date = new Date();
+  date.setMonth(date.getMonth() + accessMonths);
+  return date;
+};
+
 export const formatPrice = (price) => (price === 0
   ? 'Gratuito'
   : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price));

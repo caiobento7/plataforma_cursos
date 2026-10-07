@@ -257,7 +257,7 @@ const CheckoutPage = ({ cart, navigateTo, onConfirm }) => {
               {cart.map((course) => (
                 <li key={course.id}>
                   <img src={course.imageUrl} alt="" />
-                  <span><strong>{course.title}</strong><small>{course.level}</small></span>
+                  <span><strong>{course.title}</strong><small>{course.level} · acesso por {course.accessMonths || 6} meses</small></span>
                   <b>{formatPrice(course.price)}</b>
                 </li>
               ))}

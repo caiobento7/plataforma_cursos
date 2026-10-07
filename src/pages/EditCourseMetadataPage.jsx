@@ -6,6 +6,7 @@ const EditCourseMetadataPage = ({ navigateTo, course, onUpdateCourse }) => {
   const [price, setPrice] = useState(String(course?.price ?? 0));
   const [level, setLevel] = useState(course?.level ?? 'Iniciante');
   const [imageUrl, setImageUrl] = useState(course?.imageUrl ?? '');
+  const [accessMonths, setAccessMonths] = useState(String(course?.accessMonths ?? 6));
   const [isSaving, setIsSaving] = useState(false);
 
   if (!course) {
@@ -26,7 +27,7 @@ const EditCourseMetadataPage = ({ navigateTo, course, onUpdateCourse }) => {
     setIsSaving(true);
     try {
       // O App salva na API e volta para a lista de cursos.
-      await onUpdateCourse(course.id, { title: title.trim(), price: Number(price), level, imageUrl: imageUrl.trim() });
+      await onUpdateCourse(course.id, { title: title.trim(), price: Number(price), level, imageUrl: imageUrl.trim(), accessMonths: Number(accessMonths) });
     } finally {
       setIsSaving(false);
     }
@@ -63,6 +64,11 @@ const EditCourseMetadataPage = ({ navigateTo, course, onUpdateCourse }) => {
                   <option>Avançado</option>
                 </select>
               </div>
+            </div>
+            <div className="ui-field">
+              <label htmlFor="course-access">Prazo de acesso (meses)</label>
+              <input className="ui-input" type="number" id="course-access" value={accessMonths} onChange={(event) => setAccessMonths(event.target.value)} min="1" max="36" step="1" required />
+              <small className="ui-muted">Vale para novas matrículas e renovações; as atuais mantêm a data já definida.</small>
             </div>
             <div className="ui-field">
               <label htmlFor="course-image">URL da imagem (opcional)</label>

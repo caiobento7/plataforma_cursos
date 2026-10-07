@@ -1,5 +1,5 @@
 import { ArrowRight, Check, PlayCircle } from 'lucide-react';
-import { formatPrice } from '../utils/courseUtils.js';
+import { accessEndDate, formatDate, formatPrice } from '../utils/courseUtils.js';
 
 const methodLabel = (order) => {
   if (!order || order.method === 'free') return 'Matrícula gratuita';
@@ -34,7 +34,7 @@ const EnrollmentSuccessPage = ({ courses, order, navigateTo }) => (
           {courses.map((course) => (
             <li key={course.id}>
               <img src={course.imageUrl} alt="" />
-              <span><strong>{course.title}</strong><small>{course.level} · acesso liberado</small></span>
+              <span><strong>{course.title}</strong><small>Acesso liberado até {formatDate(accessEndDate(course.accessMonths || 6))}</small></span>
               <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => navigateTo('player', course.id)}><PlayCircle size={16} aria-hidden="true" /> Começar agora</button>
             </li>
           ))}

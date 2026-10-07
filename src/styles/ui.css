@@ -841,3 +841,12 @@ body { background: var(--ui-bg); color: var(--ui-ink); -webkit-font-smoothing: a
 @media (prefers-reduced-motion: reduce) {
   .art-cert, .art-course, .art-badge, .lp-float { animation: none; }
 }
+
+/* Prazo de acesso */
+.st-access { display: inline-flex !important; align-items: center; gap: 6px; color: var(--ui-muted); font-size: 13px; }
+.st-access.soon { color: #b45309; font-weight: 600; }
+.st-access.expired { color: #b91c1c; font-weight: 600; }
+.ui-course.st-expired .ui-course-media img { filter: grayscale(.85); opacity: .7; }
+.pl-expired > svg { color: var(--ui-amber); }
+.pl-expired-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; }
+.ui-buy .ui-alert { margin: 0; }
