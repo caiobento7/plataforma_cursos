@@ -1,8 +1,0 @@
-flowchart LR
-  Q["GET /api/courses/:id/content"] --> T{"Tem token válido?"}
-  T -- não --> G["<b>Visitante</b><br/>só a grade: títulos, tipos e durações"]
-  T -- sim --> AD{"É administrador?"}
-  AD -- sim --> F["<b>Admin</b><br/>tudo, inclusive o gabarito (editor)"]
-  AD -- não --> MA{"Matrícula dentro do prazo?"}
-  MA -- não --> G
-  MA -- sim --> SG["<b>Aluno matriculado</b><br/>vídeos, materiais e perguntas,<br/>sem o gabarito"]

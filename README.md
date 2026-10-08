@@ -154,6 +154,7 @@ Cada funcionalidade é feita em uma branch própria, com commits descritivos, e 
 api/                  # função serverless da Vercel (reaproveita o app Express)
 backend/
   database/           # scripts SQL de schema, migrações e dados de demonstração
+  scripts/            # carga do conteúdo real dos cursos (npm run seed:cursos)
   src/                # API Express, autenticação e regras de acesso
   tests/              # testes de integração da API
 docs/                 # documentação de requisitos e fluxogramas
