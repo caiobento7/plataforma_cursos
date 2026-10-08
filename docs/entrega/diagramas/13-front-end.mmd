@@ -1,0 +1,9 @@
+flowchart LR
+  M["main.jsx"] --> A["<b>App.jsx</b><br/>estado global: página atual,<br/>usuário, carrinho, cursos"]
+  A --> P["<b>13 páginas</b><br/>Landing, Login, Catálogo,<br/>Detalhes, Checkout, Player,<br/>Painel do aluno, Backoffice, Editor"]
+  P --> C["<b>Componentes reutilizáveis</b><br/>Header, CourseCard,<br/>QuizComponent, QuestionArea,<br/>FileUrlField"]
+  P --> S["<b>services/api.js</b><br/>única porta para a API"]
+  P --> U["<b>utils</b><br/>embed de vídeo, prazos,<br/>progresso, certificado PDF"]
+  S -->|"HTTP /api + Bearer token"| API[(API Express)]
+  CSS["styles/ui.css<br/>linguagem visual única"] -.-> P
+  C -.-> CSS

@@ -1,0 +1,20 @@
+sequenceDiagram
+  autonumber
+  actor AL as Aluno
+  participant P as Player (React)
+  participant A as API Express
+  participant DB as PostgreSQL
+  AL->>P: responde as 5 perguntas
+  P->>A: POST /api/lessons/:id/quiz-attempt (só as respostas)
+  A->>DB: matrícula ativa e dentro do prazo?
+  DB-->>A: sim
+  A->>DB: busca o gabarito (nunca vai ao navegador)
+  A->>A: nota = acertos / perguntas
+  alt nota maior ou igual à nota mínima
+    A->>DB: grava conclusão e melhor nota
+    A-->>P: aprovado e nota
+    P->>AL: próximo módulo liberado
+  else abaixo da nota mínima
+    A-->>P: reprovado e nota
+    P->>AL: pode tentar de novo
+  end

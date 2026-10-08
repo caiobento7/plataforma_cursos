@@ -1,0 +1,8 @@
+flowchart LR
+  L["server.js<br/>desenvolvimento local"] --> APP
+  V["api/index.js<br/>função serverless na Vercel"] --> APP
+  APP["<b>app.js</b><br/>o mesmo app nos dois ambientes<br/>CORS + JSON"] --> MW["<b>Middlewares</b><br/>requireAuth, requireAdmin"]
+  MW --> R["<b>36 rotas REST</b><br/>auth, catálogo, aprendizado,<br/>dúvidas, chamados, indicadores"]
+  R --> SB["<b>supabase.js</b>"]
+  SB --> K1["supabaseAuth<br/>chave pública: login"]
+  SB --> K2["supabaseAdmin<br/>chave secreta: banco e Storage"]
