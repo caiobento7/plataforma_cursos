@@ -1,0 +1,12 @@
+flowchart TD
+  A([Ideia: plataforma de cursos]) --> B[Definição de escopo]
+  B --> C[Elicitação: histórias de usuário]
+  C --> D[Análise e priorização]
+  D --> E[Documentação: RF, RNF e regras]
+  E --> F[Verificação: revisão e testes automatizados]
+  F --> G[Validação: uso real no ar]
+  G --> H{Mudou algum requisito?}
+  H -- sim --> I[Registrar mudança e impacto]
+  I --> J[Migração, código, testes e documentação juntos]
+  J --> F
+  H -- não --> K([Requisito vigente])

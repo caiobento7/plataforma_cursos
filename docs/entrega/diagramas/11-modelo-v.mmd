@@ -1,0 +1,17 @@
+flowchart LR
+  subgraph DEV["Construção"]
+    direction TB
+    R[Requisitos e histórias] --> AN[Análise e regras]
+    AN --> AR[Arquitetura e banco]
+    AR --> CO[Código]
+  end
+  subgraph TST["Verificação e validação"]
+    direction BT
+    LI["Análise estática<br/>ESLint e build"] --> IN["Integração<br/>8 suítes, 158 verificações"]
+    IN --> SI["Sistema<br/>suítes contra a produção"]
+    SI --> AC["Aceitação<br/>uso real no ar"]
+  end
+  CO -.- LI
+  AR -.- IN
+  AN -.- SI
+  R -.- AC

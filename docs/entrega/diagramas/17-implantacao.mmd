@@ -1,0 +1,12 @@
+flowchart LR
+  B["branch feat/..."] --> PR["<b>Pull Request</b><br/>lint, build e testes"]
+  PR --> MG["merge na main"]
+  MG --> VB["<b>Build na Vercel</b>"]
+  VB --> CDN["site estático (Vite)<br/>na CDN"]
+  VB --> FN["api/index.js<br/>função serverless"]
+  ENV["variáveis de ambiente<br/>chaves do Supabase"] -.-> FN
+  SQL["migração SQL<br/>numerada"] --> SBD[("Supabase")]
+  FN --> SBD
+  CDN --> PROD(["produção no ar"])
+  FN --> PROD
+  PROD -.->|"testes rodam de novo<br/>contra a produção"| PR
